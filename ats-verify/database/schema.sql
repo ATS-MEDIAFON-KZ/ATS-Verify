@@ -80,3 +80,47 @@ CREATE TABLE analysis_reports (
     raw_data_url TEXT, -- Path to result CSV/File if stored
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- ============================================================
+-- 7. Support Tickets (Kanban Board: ATS → Customs Workflow)
+-- ============================================================
+
+CREATE TYPE ticket_status AS ENUM ('to_do', 'in_progress', 'completed');
+CREATE TYPE ticket_priority AS ENUM ('low', 'medium', 'high');
+
+-- Replaces legacy Google Sheet for rejected application appeals.
+-- ATS Staff creates tickets; Customs officers move them across Kanban columns.
+CREATE TABLE support_tickets (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+
+    -- Applicant info
+    iin VARCHAR(20) NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+
+    -- External reference IDs
+    support_ticket_id VARCHAR(100) UNIQUE NOT NULL,  -- ID заявки в СП
+    application_number VARCHAR(100) NOT NULL,         -- Номер заявки
+    document_number VARCHAR(100) NOT NULL,            -- Номер документа
+
+    -- Content
+    rejection_reason TEXT NOT NULL,                    -- Причина отклонения
+    attachments TEXT[] DEFAULT '{}',                   -- Подтверждающие документы (URLs)
+    support_comment TEXT DEFAULT '',                   -- Комментарий СП (ATS Staff edits)
+    customs_comment TEXT DEFAULT '',                   -- Комментарий ГО (Customs edits upon resolution)
+
+    -- Kanban state
+    status ticket_status NOT NULL DEFAULT 'to_do',
+    priority ticket_priority NOT NULL DEFAULT 'medium',
+
+    -- Ownership
+    created_by UUID NOT NULL REFERENCES users(id),    -- ATS Staff who created the ticket
+    assigned_to UUID REFERENCES users(id),            -- Customs officer (nullable until assigned)
+
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes for Kanban board queries
+CREATE INDEX idx_support_tickets_status ON support_tickets(status);
+CREATE INDEX idx_support_tickets_iin ON support_tickets(iin);
+CREATE INDEX idx_support_tickets_assigned_to ON support_tickets(assigned_to);

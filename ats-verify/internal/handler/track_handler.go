@@ -11,12 +11,16 @@ import (
 
 // TrackHandler handles track search and tracking endpoints.
 type TrackHandler struct {
-	parcelService *service.ParcelService
+	parcelService   *service.ParcelService
+	trackingService *service.TrackingService
 }
 
 // NewTrackHandler creates a new TrackHandler.
-func NewTrackHandler(parcelService *service.ParcelService) *TrackHandler {
-	return &TrackHandler{parcelService: parcelService}
+func NewTrackHandler(parcelService *service.ParcelService, trackingService *service.TrackingService) *TrackHandler {
+	return &TrackHandler{
+		parcelService:   parcelService,
+		trackingService: trackingService,
+	}
 }
 
 // RegisterRoutes registers track routes.
@@ -71,17 +75,8 @@ func (h *TrackHandler) BulkSearch(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// trackingEvent is a mock tracking event.
-type trackingEvent struct {
-	Status      string `json:"status"`
-	Description string `json:"description"`
-	Location    string `json:"location"`
-	Date        string `json:"date"`
-	Source      string `json:"source"`
-}
-
 // GetTracking handles GET /api/v1/tracking/{track}
-// Returns mock tracking data (real Kazpost/CDEK integration is a future phase).
+// Queries unified TrackingService (CDEK, Kazpost) for real tracking events.
 func (h *TrackHandler) GetTracking(w http.ResponseWriter, r *http.Request) {
 	track := r.PathValue("track")
 	if track == "" {
@@ -90,7 +85,7 @@ func (h *TrackHandler) GetTracking(w http.ResponseWriter, r *http.Request) {
 	}
 	track = strings.TrimSpace(track)
 
-	// Check if parcel exists
+	// Check if parcel exists in our DB.
 	results, err := h.parcelService.BulkTrackLookup(r.Context(), []string{track})
 	if err != nil {
 		Error(w, http.StatusInternalServerError, err.Error())
@@ -102,18 +97,24 @@ func (h *TrackHandler) GetTracking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return mock tracking events
-	events := []trackingEvent{
-		{Status: "ACCEPTED", Description: "Посылка принята на склад отправителя", Location: "Шэньчжэнь, Китай", Date: "2026-02-10T10:00:00Z", Source: "mock"},
-		{Status: "IN_TRANSIT", Description: "Отправлена международным рейсом", Location: "Шэньчжэнь → Алматы", Date: "2026-02-11T14:30:00Z", Source: "mock"},
-		{Status: "CUSTOMS", Description: "Прибыла на таможню", Location: "Алматы, Казахстан", Date: "2026-02-13T09:00:00Z", Source: "mock"},
-		{Status: "CLEARED", Description: "Таможенное оформление завершено", Location: "Алматы, Казахстан", Date: "2026-02-14T16:00:00Z", Source: "mock"},
-		{Status: "DELIVERED", Description: "Доставлена получателю", Location: "Астана, Казахстан", Date: "2026-02-15T12:00:00Z", Source: "mock"},
+	// Query external tracking providers.
+	trackingResult, err := h.trackingService.Track(r.Context(), track)
+	if err != nil {
+		// Parcel exists but no external tracking data — return parcel info only.
+		JSON(w, http.StatusOK, map[string]interface{}{
+			"track_number": track,
+			"parcel":       results[0].Parcel,
+			"events":       []interface{}{},
+			"provider":     "none",
+			"message":      "no tracking data available from external providers",
+		})
+		return
 	}
 
 	JSON(w, http.StatusOK, map[string]interface{}{
 		"track_number": track,
 		"parcel":       results[0].Parcel,
-		"events":       events,
+		"events":       trackingResult.Events,
+		"provider":     trackingResult.Provider,
 	})
 }

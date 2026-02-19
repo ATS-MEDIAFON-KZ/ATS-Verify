@@ -1,53 +1,53 @@
-# VISION
-**ATS-Verify** is a comprehensive microservice platform designed to streamline logistics and customs verification processes. It provides distinct workflows for different stakeholders (ATS, Customs, Marketplaces) to manage parcel data, track shipments, analyze risks, and verify goods against declarations using intelligent text analysis.
+---
+name: ats-verify-goals
+type: project-memory
+description: Executive vision, core business rules, role definitions, and the primary bottleneck for the ATS-Verify platform, including the ATS-to-Customs Kanban workflow.
+---
 
-# SYSTEM RULES (The 5 Rules of ATS-Verify)
-> **Constraint:** This system relies on strict role-based logic and specific data validation rules.
+# GOALS.md
 
-## 1. Role Logic
-*   **Admin:** Omni-view, Risk Management (IIN/BIN coloring), Global CSV Downloads.
-*   **Paid Users:** Tracking + Invoice Matching (IMEI).
-*   **ATS Staff:** Track & Trace internal check (Used/Not Used).
-*   **Customs:** View Table, Mark "Used", Analysis (IMEI in PDF).
-*   **Marketplace (uploader_{mp}):** Upload CSV. Suffix determines `marketplace` field (e.g., `uploader_wb` -> "Wildberries").
+## Project: ATS-Verify
 
-## 2. Ingestion Logic (Marketplace CSV)
-**Input:** `marketplace | country | brand | name | track number | SNT | date`
-**Deduplication Rules:**
-1.  **New Track Number:** `INSERT` (status: `used = false`).
-2.  **Existing Track (Used=False):** `UPDATE` (Overwrite data).
-3.  **Existing Track (Used=True):** `ERROR` ("Track already used").
-    *   *Exception:* If track exists but not used, notify user and allow overwrite.
+**Last Updated:** 2026-02-19
+**Status:** Active Development
 
-## 3. Analysis Logic (Customs/Paid)
-**IMEI PDF Verification:**
-1.  **Input:** CSV (Imei1..4) + PDF (Declaration).
-2.  **Process:**
-    *   Extract unique IMEIs from CSV.
-    *   Extract text from PDF (Graph 31).
-    *   Search: Find 14-character IMEI substrings within 15-character sequences (ignoring check digit).
-3.  **Output:** Report (Found X/Y, usage matrix).
+## 1. Executive Vision
 
-**Risk Analysis (Admin):**
-1.  **Input:** CSV (`Date | AppId | IIN/BIN | doc | User | Org | Status | Reject | Reason`).
-2.  **Metrics:**
-    *   Doc reuse count.
-    *   Doc usage across different IIN/BIN.
-    *   Flip-flop status (Accepted -> Rejected).
-    *   High-frequency IIN/BIN.
-3.  **Action:** Assign Risk Level (Red/Yellow/Green) to IIN/BIN.
+**Objective:** Build a robust, role-based SaaS microservice platform for logistics and customs verification. The system validates imported devices, tracks parcels, performs risk analysis on IIN/BINs, automatically verifies IMEI codes against Customs Declaration PDFs, and facilitates seamless dispute resolution between ATS Support and Customs via an integrated Kanban board.
 
-## 4. Tracking Logic
-*   **Providers:** Kazpost (API), CDEK (API).
-*   **Scope:** Available to all users.
+## 2. Current Bottleneck (The Riskiest Part)
 
-# USER STORIES
-1.  **As a Marketplace Emp**, I want to upload my daily CSV so that parcels are registered.
-2.  **As a Customs Officer**, I want to upload a Declaration PDF and a range of IMEIs to check which ones are validly declared.
-3.  **As an Admin**, I want to color-code IINs (Red/Yellow/Green) based on suspicious activity patterns.
-4.  **As an ATS Emp**, I want to check a track number to see if it has been scanned/used.
+- **Status:** 🔴 UNSOLVED
+- **Description:** Accurately extracting text from "Graph 31" of varied PDF declarations and executing a high-performance 14-digit substring match against 15-digit sequences (ignoring the Luhn check digit) from a multi-column CSV.
+- **Proposed Solution:** Implement a dedicated parsing service in Go. If Go PDF libraries (`ledongthuc/pdf`) fail on complex layouts, fallback to a Python microservice/sidecar (`PyMuPDF`) specifically for text extraction.
+- **Secondary Bottleneck:** Ensuring real-time or optimistic UI updates on the Kanban board without overloading the PostgreSQL database during concurrent drag-and-drop operations by multiple Customs officers.
 
-# DESIGN TOKENS (Modern/Premium)
-*   **Palette:** Deep Navy (Background), Electric Blue (Accents), Glassmorphism (Cards), Semantic Red/Yellow/Green (Risks).
-*   **Typography:** Inter / Outfit.
-*   **Vibe:** Professional Dashboard, High Density Data, Smooth Transitions.
+
+## 3. Core Roles & Permissions
+
+1.  **Admin:** Full access. Downloads CSV reports by date. Uploads Risk CSVs. Assigns Risk levels (Red/Yellow/Green) to IIN/BINs.
+2.  **Customs:** Views parcel tables. Sets `used = true` flag. Runs IMEI PDF verification. **Manages and resolves support tickets on the Kanban Board.**
+3.  **Marketplace:** Uploads daily parcel CSVs.
+4.  **ATS Staff:** Checks track number existence and `used` status. **Creates review tickets for Customs based on user appeals (rejected applications).**
+5.  **Paid Users:** Tracks parcels and runs IMEI PDF verification.
+
+## 4. Business Logic Rules
+
+- **Marketplace Ingestion:** CSV format: `marketplace | country | brand | name | track number | SNT | date`. Skip rows with missing data.
+  - _Upsert Logic:_ If track exists and `used=false`, warn user but allow overwrite. If `used=true`, ERROR.
+- **Risk Analysis (Admin):** Analyzes `Date | AppId | IIN/BIN | doc | User | Org | Status | Reject | Reason` to flag doc reuse, flip-flop statuses, and high-frequency IIN/BINs.
+- **IMEI Verification (Customs/Paid):** Validates 14-digit IMEIs from CSV (`Imei1`..`Imei4`) against 15-digit values in PDF. Must output a specific statistical report and line-by-line result mapping.
+- **Support Ticketing (Kanban):** ATS Staff creates a ticket replacing the legacy Google Sheet. Customs officers move tickets across statuses (e.g., `To Do` -> `In Progress` -> `Resolved`) and leave final comments ("комментарий ГО").
+
+## 5. Architecture & Constraints
+
+- **Stack:** Go (Backend), PostgreSQL (DB), React/Vite (Frontend).
+- **Tracking Integrations:** Kazpost & CDEK APIs.
+- **Architecture:** Strict Clean Architecture (`internal/core`, `internal/repository`, `internal/transport`).
+
+## 6. Definition of Done (DoD)
+
+1. Code compiles without errors.
+2. Business logic is isolated in `internal/core/` and covered by Unit Tests.
+3. No hardcoded secrets (use `.env`).
+4. Task plan and findings are updated.

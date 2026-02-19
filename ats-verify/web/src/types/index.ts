@@ -68,3 +68,26 @@ export interface IMEIReport {
     imei4_total: number;
     results: IMEIResult[];
 }
+
+// Support Tickets (Kanban Board)
+export type TicketStatus = 'to_do' | 'in_progress' | 'completed';
+export type TicketPriority = 'low' | 'medium' | 'high';
+
+export interface SupportTicket {
+    id: string;
+    iin: string;
+    full_name: string;
+    support_ticket_id: string;
+    application_number: string;
+    document_number: string;
+    rejection_reason: string;
+    attachments: string[];
+    support_comment: string;
+    customs_comment: string;
+    status: TicketStatus;
+    priority: TicketPriority;
+    created_by: string;
+    assigned_to?: string;
+    created_at: string;
+    updated_at: string;
+}

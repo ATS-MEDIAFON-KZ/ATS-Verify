@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"io"
 	"net/http"
 
 	"ats-verify/internal/middleware"
@@ -11,12 +10,16 @@ import (
 
 // IMEIHandler handles IMEI verification endpoints.
 type IMEIHandler struct {
-	imeiService *service.IMEIService
+	imeiService  *service.IMEIService
+	pdfExtractor *service.PDFExtractor
 }
 
 // NewIMEIHandler creates a new IMEIHandler.
-func NewIMEIHandler(imeiService *service.IMEIService) *IMEIHandler {
-	return &IMEIHandler{imeiService: imeiService}
+func NewIMEIHandler(imeiService *service.IMEIService, pdfExtractor *service.PDFExtractor) *IMEIHandler {
+	return &IMEIHandler{
+		imeiService:  imeiService,
+		pdfExtractor: pdfExtractor,
+	}
 }
 
 // RegisterRoutes registers IMEI routes.
@@ -49,16 +52,12 @@ func (h *IMEIHandler) Analyze(w http.ResponseWriter, r *http.Request) {
 	}
 	defer pdfFile.Close()
 
-	// Read PDF content as text (simplified approach)
-	pdfBytes, err := io.ReadAll(pdfFile)
+	// Extract text from PDF using real PDF parser (ledongthuc/pdf).
+	pdfText, err := h.pdfExtractor.ExtractTextFromReader(pdfFile)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "failed to read PDF file")
+		Error(w, http.StatusBadRequest, "failed to extract PDF text: "+err.Error())
 		return
 	}
-
-	// Note: This is a simplified text extraction.
-	// Real PDF parsing would use a library like pdfcpu or unidoc.
-	pdfText := string(pdfBytes)
 
 	report, err := h.imeiService.Analyze(csvFile, pdfText)
 	if err != nil {

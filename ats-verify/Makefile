@@ -1,4 +1,4 @@
-.PHONY: build run dev docker-up docker-down clean
+.PHONY: build run dev docker-up docker-down docker-build docker-prod clean test fmt lint
 
 # Build the Go server binary
 build:
@@ -12,17 +12,29 @@ run: build
 dev:
 	air -c .air.toml
 
-# Start Docker containers (PostgreSQL + PgAdmin)
+# Start dev containers (PostgreSQL + PgAdmin only)
 docker-up:
-	docker compose up -d
+	docker compose up -d postgres pgadmin
 
-# Stop Docker containers
+# Stop all containers
 docker-down:
 	docker compose down
+
+# Build production Docker image
+docker-build:
+	docker compose build app
+
+# Start full production stack (DB + App + PgAdmin)
+docker-prod:
+	docker compose up -d
 
 # Remove volumes (WARNING: deletes all data)
 docker-clean:
 	docker compose down -v
+
+# Build frontend
+web-build:
+	cd web && npm run build
 
 # Run tests
 test:
@@ -39,3 +51,4 @@ lint:
 
 clean:
 	rm -rf bin/
+	rm -rf web/dist/

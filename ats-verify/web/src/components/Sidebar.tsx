@@ -10,6 +10,7 @@ import {
     Upload,
     LogOut,
     CheckCircle2,
+    Ticket,
 } from 'lucide-react';
 import type { UserRole } from '../types';
 
@@ -28,6 +29,7 @@ const NAV_ITEMS: NavItem[] = [
     { to: '/tracking', label: 'Отслеживание', icon: <MapPin size={18} />, roles: ['admin', 'ats_staff', 'customs_staff', 'marketplace_staff', 'paid_user'] },
     { to: '/imei', label: 'IMEI Проверка', icon: <Smartphone size={18} />, roles: ['customs_staff', 'paid_user'] },
     { to: '/risks', label: 'Риски', icon: <ShieldAlert size={18} />, roles: ['admin', 'customs_staff'] },
+    { to: '/tickets', label: 'Тикеты', icon: <Ticket size={18} />, roles: ['ats_staff', 'customs_staff', 'admin'] },
 ];
 
 const ROLE_LABELS: Record<UserRole, string> = {

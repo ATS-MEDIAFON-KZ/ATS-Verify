@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+web/node_modules/
+web/dist/
+
+# Build artifacts
+bin/
+*.exe
+server
+
+# VCS
+.git
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Docs
+*.md
+!database/*.sql
+
+# Environment (secrets)
+.env
+.env.*
+
+# Misc
+.air.toml
+tmp/

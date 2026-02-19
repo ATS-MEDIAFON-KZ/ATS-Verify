@@ -9,6 +9,7 @@ import TrackPage from './pages/TrackPage';
 import TrackingPage from './pages/TrackingPage';
 import IMEIPage from './pages/IMEIPage';
 import RisksPage from './pages/RisksPage';
+import TicketsPage from './pages/TicketsPage';
 import type { UserRole } from './types';
 import './index.css';
 
@@ -59,6 +60,12 @@ function App() {
             <Route path="risks" element={
               <RoleGuard allowed={['admin', 'customs_staff']}>
                 <RisksPage />
+              </RoleGuard>
+            } />
+
+            <Route path="tickets" element={
+              <RoleGuard allowed={['ats_staff', 'customs_staff', 'admin']}>
+                <TicketsPage />
               </RoleGuard>
             } />
           </Route>
