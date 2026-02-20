@@ -25,6 +25,7 @@ func NewRiskAnalysisHandler(riskAnalysisService *service.RiskAnalysisService) *R
 func (h *RiskAnalysisHandler) RegisterRoutes(mux *http.ServeMux, authMw func(http.Handler) http.Handler) {
 	roleMw := middleware.RequireRole(models.RoleAdmin)
 	mux.Handle("POST /api/v1/risks/analyze", authMw(roleMw(http.HandlerFunc(h.AnalyzeCSV))))
+	mux.Handle("GET /api/v1/risks/reports", authMw(roleMw(http.HandlerFunc(h.GetReports))))
 }
 
 // AnalyzeCSV handles POST /api/v1/risks/analyze (multipart: csv_file)
@@ -54,7 +55,7 @@ func (h *RiskAnalysisHandler) AnalyzeCSV(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	result, err := h.riskAnalysisService.AnalyzeCSV(r.Context(), csvFile, flaggedBy)
+	rowsInserted, err := h.riskAnalysisService.AnalyzeCSV(r.Context(), csvFile, flaggedBy)
 	if err != nil {
 		if strings.Contains(err.Error(), "missing required column") || strings.Contains(err.Error(), "no valid data") {
 			Error(w, http.StatusBadRequest, err.Error())
@@ -64,5 +65,19 @@ func (h *RiskAnalysisHandler) AnalyzeCSV(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	JSON(w, http.StatusOK, result)
+	JSON(w, http.StatusOK, map[string]interface{}{
+		"inserted_rows": rowsInserted,
+		"message":       "Data successfully imported for analysis",
+	})
+}
+
+// GetReports handles GET /api/v1/risks/reports
+func (h *RiskAnalysisHandler) GetReports(w http.ResponseWriter, r *http.Request) {
+	reports, err := h.riskAnalysisService.GetAnalyticsReports(r.Context())
+	if err != nil {
+		Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	JSON(w, http.StatusOK, reports)
 }

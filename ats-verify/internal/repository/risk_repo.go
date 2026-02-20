@@ -21,13 +21,13 @@ func NewRiskRepository(db *sql.DB) *RiskRepository {
 }
 
 // Upsert creates or updates a risk profile for an IIN/BIN.
-func (r *RiskRepository) Upsert(ctx context.Context, profile *models.RiskProfile) error {
+func (r *RiskRepository) Upsert(ctx context.Context, profile *models.IINBINRisk) error {
 	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO risk_profiles (id, iin_bin, risk_level, flagged_by, reason, created_at, updated_at)
+		`INSERT INTO iin_bin_risks (id, iin_bin, risk_level, flagged_by, comment, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
 		 ON CONFLICT (iin_bin)
-		 DO UPDATE SET risk_level = EXCLUDED.risk_level, flagged_by = EXCLUDED.flagged_by, reason = EXCLUDED.reason, updated_at = NOW()`,
-		uuid.New(), profile.IINBIN, profile.RiskLevel, profile.FlaggedBy, profile.Reason,
+		 DO UPDATE SET risk_level = EXCLUDED.risk_level, flagged_by = EXCLUDED.flagged_by, comment = EXCLUDED.comment, updated_at = NOW()`,
+		uuid.New(), profile.IINBIN, profile.RiskLevel, profile.FlaggedBy, profile.Comment,
 	)
 	if err != nil {
 		return fmt.Errorf("upserting risk profile: %w", err)
@@ -36,13 +36,13 @@ func (r *RiskRepository) Upsert(ctx context.Context, profile *models.RiskProfile
 }
 
 // GetByIINBIN retrieves a risk profile by IIN/BIN.
-func (r *RiskRepository) GetByIINBIN(ctx context.Context, iinBin string) (*models.RiskProfile, error) {
-	var p models.RiskProfile
+func (r *RiskRepository) GetByIINBIN(ctx context.Context, iinBin string) (*models.IINBINRisk, error) {
+	var p models.IINBINRisk
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, iin_bin, risk_level, flagged_by, reason, created_at, updated_at
-		 FROM risk_profiles WHERE iin_bin = $1`,
+		`SELECT id, iin_bin, risk_level, flagged_by, comment, created_at, updated_at
+		 FROM iin_bin_risks WHERE iin_bin = $1`,
 		iinBin,
-	).Scan(&p.ID, &p.IINBIN, &p.RiskLevel, &p.FlaggedBy, &p.Reason, &p.CreatedAt, &p.UpdatedAt)
+	).Scan(&p.ID, &p.IINBIN, &p.RiskLevel, &p.FlaggedBy, &p.Comment, &p.CreatedAt, &p.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -54,19 +54,19 @@ func (r *RiskRepository) GetByIINBIN(ctx context.Context, iinBin string) (*model
 }
 
 // ListAll returns all risk profiles.
-func (r *RiskRepository) ListAll(ctx context.Context) ([]models.RiskProfile, error) {
+func (r *RiskRepository) ListAll(ctx context.Context) ([]models.IINBINRisk, error) {
 	rows, err := r.db.QueryContext(ctx,
-		"SELECT id, iin_bin, risk_level, flagged_by, reason, created_at, updated_at FROM risk_profiles ORDER BY updated_at DESC",
+		"SELECT id, iin_bin, risk_level, flagged_by, comment, created_at, updated_at FROM iin_bin_risks ORDER BY updated_at DESC",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("listing risk profiles: %w", err)
 	}
 	defer rows.Close()
 
-	var profiles []models.RiskProfile
+	var profiles []models.IINBINRisk
 	for rows.Next() {
-		var p models.RiskProfile
-		if err := rows.Scan(&p.ID, &p.IINBIN, &p.RiskLevel, &p.FlaggedBy, &p.Reason, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		var p models.IINBINRisk
+		if err := rows.Scan(&p.ID, &p.IINBIN, &p.RiskLevel, &p.FlaggedBy, &p.Comment, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scanning risk profile: %w", err)
 		}
 		profiles = append(profiles, p)
@@ -76,7 +76,7 @@ func (r *RiskRepository) ListAll(ctx context.Context) ([]models.RiskProfile, err
 
 // Delete removes a risk profile by ID.
 func (r *RiskRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	result, err := r.db.ExecContext(ctx, "DELETE FROM risk_profiles WHERE id = $1", id)
+	result, err := r.db.ExecContext(ctx, "DELETE FROM iin_bin_risks WHERE id = $1", id)
 	if err != nil {
 		return fmt.Errorf("deleting risk profile: %w", err)
 	}

@@ -21,12 +21,12 @@ func NewRiskService(riskRepo *repository.RiskRepository) *RiskService {
 }
 
 // List returns all risk profiles.
-func (s *RiskService) List(ctx context.Context) ([]models.RiskProfile, error) {
+func (s *RiskService) List(ctx context.Context) ([]models.IINBINRisk, error) {
 	return s.riskRepo.ListAll(ctx)
 }
 
 // CreateOrUpdate creates or updates a risk profile.
-func (s *RiskService) CreateOrUpdate(ctx context.Context, iinBin string, riskLevel models.RiskLevel, reason string, flaggedBy uuid.UUID) error {
+func (s *RiskService) CreateOrUpdate(ctx context.Context, iinBin string, riskLevel models.RiskLevel, comment string, flaggedBy uuid.UUID) error {
 	// Validate risk level
 	switch riskLevel {
 	case models.RiskGreen, models.RiskYellow, models.RiskRed:
@@ -38,11 +38,11 @@ func (s *RiskService) CreateOrUpdate(ctx context.Context, iinBin string, riskLev
 		return fmt.Errorf("iin_bin is required")
 	}
 
-	profile := &models.RiskProfile{
+	profile := &models.IINBINRisk{
 		IINBIN:    iinBin,
 		RiskLevel: riskLevel,
 		FlaggedBy: flaggedBy,
-		Reason:    reason,
+		Comment:   comment,
 	}
 
 	return s.riskRepo.Upsert(ctx, profile)

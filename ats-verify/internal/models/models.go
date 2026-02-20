@@ -81,13 +81,28 @@ type Parcel struct {
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 }
 
-// RiskProfile represents a risk assessment for an IIN/BIN.
-type RiskProfile struct {
+// RiskRawData holds raw CSV risk analysis rows.
+type RiskRawData struct {
+	ID            uuid.UUID `json:"id" db:"id"`
+	ReportDate    time.Time `json:"report_date" db:"report_date"`
+	ApplicationID string    `json:"application_id" db:"application_id"`
+	IINBIN        string    `json:"iin_bin" db:"iin_bin"`
+	Document      string    `json:"document" db:"document"`
+	UserName      string    `json:"user_name" db:"user_name"`
+	Organization  string    `json:"organization" db:"organization"`
+	Status        string    `json:"status" db:"status"`
+	Reject        string    `json:"reject" db:"reject"`
+	Reason        string    `json:"reason" db:"reason"`
+	CreatedAt     time.Time `json:"created_at" db:"created_at"`
+}
+
+// IINBINRisk represents a managed risk assessment for an IIN/BIN.
+type IINBINRisk struct {
 	ID        uuid.UUID `json:"id" db:"id"`
 	IINBIN    string    `json:"iin_bin" db:"iin_bin"`
 	RiskLevel RiskLevel `json:"risk_level" db:"risk_level"`
 	FlaggedBy uuid.UUID `json:"flagged_by" db:"flagged_by"`
-	Reason    string    `json:"reason,omitempty" db:"reason"`
+	Comment   string    `json:"comment" db:"comment"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 }
@@ -135,6 +150,10 @@ type SupportTicket struct {
 	AssignedTo        *uuid.UUID     `json:"assigned_to,omitempty" db:"assigned_to"`
 	CreatedAt         time.Time      `json:"created_at" db:"created_at"`
 	UpdatedAt         time.Time      `json:"updated_at" db:"updated_at"`
+
+	// Joined Risk Profile
+	RiskLevel   *RiskLevel `json:"risk_level,omitempty" db:"risk_level"`
+	RiskComment *string    `json:"risk_comment,omitempty" db:"risk_comment"`
 }
 
 // MarketplacePrefixMap maps user role suffixes to marketplace names.

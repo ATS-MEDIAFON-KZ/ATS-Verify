@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -38,7 +39,7 @@ func (h *RiskHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if profiles == nil {
-		profiles = []models.RiskProfile{}
+		profiles = []models.IINBINRisk{}
 	}
 
 	JSON(w, http.StatusOK, map[string]interface{}{
@@ -51,7 +52,7 @@ func (h *RiskHandler) List(w http.ResponseWriter, r *http.Request) {
 type createRiskRequest struct {
 	IINBIN    string `json:"iin_bin"`
 	RiskLevel string `json:"risk_level"`
-	Reason    string `json:"reason"`
+	Comment   string `json:"comment"`
 }
 
 // CreateOrUpdate handles POST /api/v1/risks
@@ -73,13 +74,18 @@ func (h *RiskHandler) CreateOrUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if strings.TrimSpace(req.Comment) == "" {
+		Error(w, http.StatusBadRequest, "comment is strictly required")
+		return
+	}
+
 	userID, err := uuid.Parse(claims.UserID)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, "invalid user ID")
 		return
 	}
 
-	if err := h.riskService.CreateOrUpdate(r.Context(), req.IINBIN, models.RiskLevel(req.RiskLevel), req.Reason, userID); err != nil {
+	if err := h.riskService.CreateOrUpdate(r.Context(), req.IINBIN, models.RiskLevel(req.RiskLevel), req.Comment, userID); err != nil {
 		Error(w, http.StatusBadRequest, err.Error())
 		return
 	}

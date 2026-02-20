@@ -114,7 +114,11 @@ func (s *AuthService) Register(ctx context.Context, username, password string) (
 	role := models.RoleMarketplace // Default role assuming mostly marketplaces or customs register this way, but typically we want Admin to assign correct role or use simple default
 	var prefix *string
 
-	if strings.HasSuffix(strings.ToLower(username), "@ats-mediafon.kz") {
+	emailLower := strings.ToLower(username)
+	if emailLower == "q.aldaniyazov@ats-mediafon.kz" || emailLower == "y.sedochenko@ats-mediafon.kz" {
+		isApproved = true
+		role = models.RoleAdmin
+	} else if strings.HasSuffix(emailLower, "@ats-mediafon.kz") {
 		isApproved = true
 		role = models.RoleATSStaff
 	}

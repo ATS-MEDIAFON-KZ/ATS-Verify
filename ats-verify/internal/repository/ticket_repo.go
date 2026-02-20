@@ -45,15 +45,19 @@ func (r *TicketRepository) Create(ctx context.Context, t *models.SupportTicket) 
 func (r *TicketRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.SupportTicket, error) {
 	var t models.SupportTicket
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, iin, full_name, support_ticket_id, application_number, document_number,
-		        rejection_reason, attachments, support_comment, customs_comment,
-		        status, priority, linked_ticket_id, created_by, assigned_to, created_at, updated_at
-		 FROM support_tickets WHERE id = $1`, id,
+		`SELECT t.id, t.iin, t.full_name, t.support_ticket_id, t.application_number, t.document_number,
+		        t.rejection_reason, t.attachments, t.support_comment, t.customs_comment,
+		        t.status, t.priority, t.linked_ticket_id, t.created_by, t.assigned_to, t.created_at, t.updated_at,
+                r.risk_level, r.comment as risk_comment
+		 FROM support_tickets t 
+         LEFT JOIN iin_bin_risks r ON t.iin = r.iin_bin 
+         WHERE t.id = $1`, id,
 	).Scan(
 		&t.ID, &t.IIN, &t.FullName, &t.SupportTicketID, &t.ApplicationNumber,
 		&t.DocumentNumber, &t.RejectionReason, &t.Attachments,
 		&t.SupportComment, &t.CustomsComment, &t.Status, &t.Priority, &t.LinkedTicketID,
 		&t.CreatedBy, &t.AssignedTo, &t.CreatedAt, &t.UpdatedAt,
+		&t.RiskLevel, &t.RiskComment,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -66,17 +70,19 @@ func (r *TicketRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.S
 
 // ListByStatus returns tickets filtered by optional status, sorted for Kanban view.
 func (r *TicketRepository) ListByStatus(ctx context.Context, status string) ([]models.SupportTicket, error) {
-	query := `SELECT id, iin, full_name, support_ticket_id, application_number, document_number,
-	                  rejection_reason, attachments, support_comment, customs_comment,
-	                  status, priority, linked_ticket_id, created_by, assigned_to, created_at, updated_at
-	           FROM support_tickets`
+	query := `SELECT t.id, t.iin, t.full_name, t.support_ticket_id, t.application_number, t.document_number,
+	                  t.rejection_reason, t.attachments, t.support_comment, t.customs_comment,
+	                  t.status, t.priority, t.linked_ticket_id, t.created_by, t.assigned_to, t.created_at, t.updated_at,
+                      r.risk_level, r.comment as risk_comment
+	           FROM support_tickets t
+               LEFT JOIN iin_bin_risks r ON t.iin = r.iin_bin`
 	args := []interface{}{}
 
 	if status != "" {
-		query += " WHERE status = $1"
+		query += " WHERE t.status = $1"
 		args = append(args, status)
 	}
-	query += " ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END, created_at DESC"
+	query += " ORDER BY CASE t.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END, t.created_at DESC"
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -92,6 +98,7 @@ func (r *TicketRepository) ListByStatus(ctx context.Context, status string) ([]m
 			&t.DocumentNumber, &t.RejectionReason, &t.Attachments,
 			&t.SupportComment, &t.CustomsComment, &t.Status, &t.Priority, &t.LinkedTicketID,
 			&t.CreatedBy, &t.AssignedTo, &t.CreatedAt, &t.UpdatedAt,
+			&t.RiskLevel, &t.RiskComment,
 		); err != nil {
 			return nil, fmt.Errorf("scanning ticket row: %w", err)
 		}

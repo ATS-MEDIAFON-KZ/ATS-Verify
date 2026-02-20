@@ -60,3 +60,8 @@ Replaces the legacy Google Sheet for rejected applications.
 ### React DnD (Frontend Kanban)
 * **Library:** `@dnd-kit/core` + `@dnd-kit/sortable`
 * **Rationale:** Active maintenance, accessible, lightweight, hooks-based. Better DX vs `react-beautiful-dnd` (deprecated) and `@hello-pangea/dnd`.
+
+## 6. Risk Engine Analytics
+* **Data Sources:** Raw tracking uploads by Marketplaces parsed directly into `risk_raw_data`.
+* **Analytical Queries:** Executed via raw PostgreSQL strings within `RiskRawDataRepository`.
+* **Risk Levels:** `iin_bin_risks` holds unique profiles mapped to `green`, `yellow`, `red`, joined exclusively with `support_tickets` mapping by UUID/IIN. Parcels are skipped due to the lack of an `iin_bin` field in standard CSV formats.
