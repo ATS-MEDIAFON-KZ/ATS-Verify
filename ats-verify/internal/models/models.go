@@ -60,6 +60,7 @@ type User struct {
 	PasswordHash      string    `json:"-" db:"password_hash"`
 	Role              UserRole  `json:"role" db:"role"`
 	MarketplacePrefix *string   `json:"marketplace_prefix,omitempty" db:"marketplace_prefix"`
+	IsApproved        bool      `json:"is_approved" db:"is_approved"`
 	CreatedAt         time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at" db:"updated_at"`
 }

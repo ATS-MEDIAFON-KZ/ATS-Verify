@@ -28,7 +28,9 @@ description: Active Kanban board and phase checklist based on the BLAST framewor
 ## Phase 3: Architect (Implementation)
 
 - [x] **Auth:** JWT role-based middleware. *(Already existed and is solid)*
+- [x] **Auth (Registration):** Add `is_approved` field, endpoints for Registration and Admin user approval. Include auto-approval logic for `@ats-mediafon.kz`.
 - [x] **Ingestion:** Marketplace CSV parser with missing data skipping and `used` boolean upsert logic. *(Already existed)*
+- [x] **Smart Ingestion:** Overhaul CSV parser with strict field validation (null-checks) and dynamically detect marketplace column handling based on `user.Role`.
 - [x] **Tracking:** Implement unified tracking interface for Kazpost/CDEK. *(Tracker interface + stubs)*
 - [x] **Risk Engine:** Implement Admin logic to analyze document reuse and assign Red/Yellow/Green flags to IIN/BINs. *(3 algorithms + auto-flagging)*
 - [x] **Verification:** Implement PDF "Graph 31" extraction and 14-digit IMEI substring matching logic. *(ledongthuc/pdf integrated)*

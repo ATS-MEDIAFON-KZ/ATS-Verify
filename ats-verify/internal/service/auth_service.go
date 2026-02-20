@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
 	"ats-verify/internal/middleware"
@@ -49,6 +51,10 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*Lo
 		return nil, fmt.Errorf("invalid credentials")
 	}
 
+	if !user.IsApproved {
+		return nil, fmt.Errorf("user account is pending admin approval")
+	}
+
 	// Generate JWT
 	prefix := ""
 	if user.MarketplacePrefix != nil {
@@ -85,4 +91,62 @@ func HashPassword(password string) (string, error) {
 		return "", fmt.Errorf("hashing password: %w", err)
 	}
 	return string(hash), nil
+}
+
+// Register creates a new user. Auto-approves "@ats-mediafon.kz" and sets them to RoleATSStaff.
+func (s *AuthService) Register(ctx context.Context, username, password string) (*models.User, error) {
+	// Check if user already exists
+	existing, err := s.userRepo.GetByUsername(ctx, username)
+	if err != nil {
+		return nil, fmt.Errorf("checking existing user: %w", err)
+	}
+	if existing != nil {
+		return nil, fmt.Errorf("username already taken")
+	}
+
+	hash, err := HashPassword(password)
+	if err != nil {
+		return nil, err
+	}
+
+	// Determine defaults
+	isApproved := false
+	role := models.RoleMarketplace // Default role assuming mostly marketplaces or customs register this way, but typically we want Admin to assign correct role or use simple default
+	var prefix *string
+
+	if strings.HasSuffix(strings.ToLower(username), "@ats-mediafon.kz") {
+		isApproved = true
+		role = models.RoleATSStaff
+	}
+
+	// Ideally we could let them choose a role but based on goals, admin assigns roles for non-ATS staff or we use a basic default.
+	// For now we assume they default to something like RolePaidUser if not ATS, and Admin changes it.
+	if !isApproved {
+		role = models.RolePaidUser
+	}
+
+	user := &models.User{
+		Username:          username,
+		PasswordHash:      hash,
+		Role:              role,
+		IsApproved:        isApproved,
+		MarketplacePrefix: prefix,
+	}
+
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		return nil, fmt.Errorf("creating user: %w", err)
+	}
+
+	// Fetch to return full model with ID
+	created, err := s.userRepo.GetByUsername(ctx, username)
+	if err != nil {
+		return nil, fmt.Errorf("retrieving created user: %w", err)
+	}
+
+	return created, nil
+}
+
+// ApproveUser marks a user as approved.
+func (s *AuthService) ApproveUser(ctx context.Context, userID uuid.UUID) error {
+	return s.userRepo.ApproveUser(ctx, userID)
 }

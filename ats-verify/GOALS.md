@@ -25,11 +25,15 @@ description: Executive vision, core business rules, role definitions, and the pr
 
 ## 3. Core Roles & Permissions
 
-1.  **Admin:** Full access. Downloads CSV reports by date. Uploads Risk CSVs. Assigns Risk levels (Red/Yellow/Green) to IIN/BINs.
+1.  **Admin:** Full access. Downloads CSV reports by date. Uploads Risk CSVs. Assigns Risk levels (Red/Yellow/Green) to IIN/BINs. Approves user registrations.
 2.  **Customs:** Views parcel tables. Sets `used = true` flag. Runs IMEI PDF verification. **Manages and resolves support tickets on the Kanban Board.**
 3.  **Marketplace:** Uploads daily parcel CSVs.
 4.  **ATS Staff:** Checks track number existence and `used` status. **Creates review tickets for Customs based on user appeals (rejected applications).**
 5.  **Paid Users:** Tracks parcels and runs IMEI PDF verification.
+
+*Registration & Approval Workflow:*
+- Automatic: Users registering with an `@ats-mediafon.kz` email are automatically assigned the `ats_staff` role and are approved (`is_approved = true`).
+- Manual: Other users default to `is_approved = false` and must be explicitly approved by an Admin via the approve endpoint.
 
 ## 4. Business Logic Rules
 

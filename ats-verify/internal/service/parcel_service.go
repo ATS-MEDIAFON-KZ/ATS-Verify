@@ -34,8 +34,8 @@ type UploadResult struct {
 }
 
 // ProcessCSVUpload parses a CSV file and upserts parcels.
-// Expected CSV format: track_number,country,brand,product_name,snt
-func (s *ParcelService) ProcessCSVUpload(ctx context.Context, reader io.Reader, marketplace string, uploadedBy uuid.UUID) (*UploadResult, error) {
+// Expected CSV format: marketplace, country, brand, product_name, track_number, snt, date
+func (s *ParcelService) ProcessCSVUpload(ctx context.Context, reader io.Reader, overrideMarketplace string, uploadedBy uuid.UUID) (*UploadResult, error) {
 	csvReader := csv.NewReader(reader)
 	csvReader.TrimLeadingSpace = true
 
@@ -87,14 +87,46 @@ func (s *ParcelService) ProcessCSVUpload(ctx context.Context, reader io.Reader, 
 			continue
 		}
 
+		country := getCSVField(record, colMap, "country")
+		brand := getCSVField(record, colMap, "brand")
+		productName := getCSVField(record, colMap, "product_name")
+		if productName == "" { // fallback alternative column naming
+			productName = getCSVField(record, colMap, "name")
+		}
+		snt := getCSVField(record, colMap, "snt")
+		dateStr := getCSVField(record, colMap, "date")
+
+		rowMarketplace := getCSVField(record, colMap, "marketplace")
+
+		// Validation of required fields per GOALS.md
+		if overrideMarketplace == "" && rowMarketplace == "" {
+			result.Errors = append(result.Errors, fmt.Sprintf("row %d: missing marketplace column for admin upload", result.TotalProcessed))
+			continue
+		}
+		if country == "" || brand == "" || productName == "" || snt == "" || dateStr == "" {
+			result.Errors = append(result.Errors, fmt.Sprintf("row %d: missing required fields (country, brand, name, snt, date)", result.TotalProcessed))
+			continue
+		}
+
+		finalMarketplace := overrideMarketplace
+		if finalMarketplace == "" {
+			finalMarketplace = rowMarketplace
+		}
+
+		var uploadDate time.Time
+		uploadDate, err = time.Parse("2006-01-02", dateStr) // assuming YYYY-MM-DD
+		if err != nil {
+			uploadDate = time.Now() // fallback to now if unparseable, though strict validation could block it
+		}
+
 		parcel := &models.Parcel{
 			TrackNumber: trackNumber,
-			Marketplace: marketplace,
-			Country:     getCSVField(record, colMap, "country"),
-			Brand:       getCSVField(record, colMap, "brand"),
-			ProductName: getCSVField(record, colMap, "product_name"),
-			SNT:         getCSVField(record, colMap, "snt"),
-			UploadDate:  time.Now(),
+			Marketplace: finalMarketplace,
+			Country:     country,
+			Brand:       brand,
+			ProductName: productName,
+			SNT:         snt,
+			UploadDate:  uploadDate,
 			UploadedBy:  uploadedBy,
 		}
 

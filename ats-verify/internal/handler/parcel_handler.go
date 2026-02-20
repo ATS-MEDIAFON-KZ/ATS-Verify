@@ -75,13 +75,17 @@ func (h *ParcelHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Determine marketplace from user prefix or fallback
-	marketplace := "Unknown"
-	if claims.MarketplacePrefix != "" {
-		if name, ok := models.MarketplacePrefixMap[claims.MarketplacePrefix]; ok {
-			marketplace = name
+	// Determine marketplace from user prefix or role
+	overrideMarketplace := ""
+	if claims.Role == models.RoleMarketplace {
+		if claims.MarketplacePrefix != "" {
+			if name, ok := models.MarketplacePrefixMap[claims.MarketplacePrefix]; ok {
+				overrideMarketplace = name
+			} else {
+				overrideMarketplace = claims.MarketplacePrefix
+			}
 		} else {
-			marketplace = claims.MarketplacePrefix
+			overrideMarketplace = "Unknown Marketplace"
 		}
 	}
 
@@ -91,7 +95,7 @@ func (h *ParcelHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.parcelService.ProcessCSVUpload(r.Context(), file, marketplace, userID)
+	result, err := h.parcelService.ProcessCSVUpload(r.Context(), file, overrideMarketplace, userID)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, err.Error())
 		return
