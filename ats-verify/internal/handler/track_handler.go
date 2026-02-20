@@ -76,7 +76,8 @@ func (h *TrackHandler) BulkSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetTracking handles GET /api/v1/tracking/{track}
-// Queries unified TrackingService (CDEK, Kazpost) for real tracking events.
+// Queries external providers (Kazpost, CDEK) for real tracking events.
+// Does NOT require the parcel to exist in our database.
 func (h *TrackHandler) GetTracking(w http.ResponseWriter, r *http.Request) {
 	track := r.PathValue("track")
 	if track == "" {
@@ -85,36 +86,25 @@ func (h *TrackHandler) GetTracking(w http.ResponseWriter, r *http.Request) {
 	}
 	track = strings.TrimSpace(track)
 
-	// Check if parcel exists in our DB.
-	results, err := h.parcelService.BulkTrackLookup(r.Context(), []string{track})
-	if err != nil {
-		Error(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	if len(results) == 0 || !results[0].Found {
-		Error(w, http.StatusNotFound, "parcel not found in database")
-		return
-	}
-
-	// Query external tracking providers.
+	// Query external tracking providers directly.
 	trackingResult, err := h.trackingService.Track(r.Context(), track)
 	if err != nil {
-		// Parcel exists but no external tracking data — return parcel info only.
-		JSON(w, http.StatusOK, map[string]interface{}{
-			"track_number": track,
-			"parcel":       results[0].Parcel,
-			"events":       []interface{}{},
-			"provider":     "none",
-			"message":      "no tracking data available from external providers",
-		})
+		Error(w, http.StatusNotFound, "tracking data not found: "+err.Error())
 		return
+	}
+
+	// Optionally check if parcel exists in our DB for extra info.
+	var parcelInfo interface{}
+	results, dbErr := h.parcelService.BulkTrackLookup(r.Context(), []string{track})
+	if dbErr == nil && len(results) > 0 && results[0].Found {
+		parcelInfo = results[0].Parcel
 	}
 
 	JSON(w, http.StatusOK, map[string]interface{}{
 		"track_number": track,
-		"parcel":       results[0].Parcel,
+		"parcel":       parcelInfo,
 		"events":       trackingResult.Events,
 		"provider":     trackingResult.Provider,
+		"external_url": trackingResult.ExternalURL,
 	})
 }

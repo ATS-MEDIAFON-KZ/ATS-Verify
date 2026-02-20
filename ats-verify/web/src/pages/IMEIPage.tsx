@@ -3,17 +3,25 @@ import { Smartphone, Upload, Download, CheckCircle, XCircle } from 'lucide-react
 import api from '../lib/api';
 
 interface IMEIResult {
-    row: number;
-    imei_code: string;
-    status: 'found' | 'missing';
-    matched_number?: string;
+    csv_line: number;
+    column: string;
+    imei_14: string;
+    found: boolean;
+    matched_imei?: string;
 }
 
-interface IMEIReport {
+interface IMEIColumnStats {
+    column: string;
     total: number;
     found: number;
     missing: number;
-    match_rate: number;
+}
+
+interface IMEIReport {
+    total_imeis: number;
+    total_found: number;
+    total_missing: number;
+    column_stats: IMEIColumnStats[];
     results: IMEIResult[];
 }
 
@@ -48,12 +56,12 @@ export default function IMEIPage() {
     };
 
     const results = report?.results || [];
-    const matchRate = report?.match_rate || 0;
+    const matchRate = (report && report.total_imeis > 0) ? Math.round((report.total_found / report.total_imeis) * 100) : 0;
 
     const handleExport = () => {
         if (results.length === 0) return;
-        const headers = ['Row', 'IMEI Code', 'Status', 'Matched Number'];
-        const rows = results.map(r => [r.row, r.imei_code, r.status, r.matched_number || '']);
+        const headers = ['Row', 'Column', 'IMEI Code (14-digit)', 'Status in PDF', 'Matched 15-digit Number'];
+        const rows = results.map(r => [r.csv_line, r.column, r.imei_14, r.found ? 'Found' : 'Missing', r.matched_imei || '']);
         const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
         const blob = new Blob([csv], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
@@ -140,21 +148,21 @@ export default function IMEIPage() {
                             </div>
                             <div>
                                 <p className="text-sm font-semibold text-text-primary">Match Rate</p>
-                                <p className="text-xs text-text-muted">{report.found} out of {report.total} verified</p>
+                                <p className="text-xs text-text-muted">{report.total_found} out of {report.total_imeis} verified</p>
                             </div>
                         </div>
 
                         <div className="stat-card">
                             <p className="text-xs text-text-muted uppercase tracking-wider">Всего</p>
-                            <p className="text-xl font-bold text-text-primary">{report.total}</p>
+                            <p className="text-xl font-bold text-text-primary">{report.total_imeis}</p>
                         </div>
                         <div className="stat-card">
                             <p className="text-xs text-text-muted uppercase tracking-wider">Найдено</p>
-                            <p className="text-xl font-bold text-green-600">{report.found}</p>
+                            <p className="text-xl font-bold text-green-600">{report.total_found}</p>
                         </div>
                         <div className="stat-card">
                             <p className="text-xs text-text-muted uppercase tracking-wider">Не найдено</p>
-                            <p className="text-xl font-bold text-red-600">{report.missing}</p>
+                            <p className="text-xl font-bold text-red-600">{report.total_missing}</p>
                         </div>
                     </div>
 
@@ -171,28 +179,40 @@ export default function IMEIPage() {
                             <h3 className="text-base font-semibold text-text-primary">Matching Results</h3>
                         </div>
 
+                        {/* Per-column Stats */}
+                        <div className="px-6 py-4 bg-bg-hover border-b border-border flex flex-wrap gap-4">
+                            {report.column_stats.map((colStat) => (
+                                <div key={colStat.column} className="bg-bg-white border border-border rounded-lg px-3 py-2 text-sm shadow-sm">
+                                    <span className="font-semibold text-text-primary">{colStat.column}:</span>{' '}
+                                    <span className="text-green-600">{colStat.found}</span> / <span className="text-text-primary">{colStat.total}</span>
+                                </div>
+                            ))}
+                        </div>
+
                         <table className="data-table">
                             <thead>
                                 <tr>
                                     <th>Row #</th>
+                                    <th>Column</th>
                                     <th>IMEI Code (14-digit)</th>
                                     <th>Status in PDF</th>
                                     <th>Matched 15-digit Number</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {results.map((r) => (
-                                    <tr key={r.row}>
-                                        <td className="text-text-muted">{String(r.row).padStart(3, '0')}</td>
-                                        <td className="font-mono font-medium text-text-primary">{r.imei_code}</td>
+                                {results.map((r, i) => (
+                                    <tr key={i}>
+                                        <td className="text-text-muted">{String(r.csv_line).padStart(3, '0')}</td>
+                                        <td className="font-medium text-text-secondary">{r.column}</td>
+                                        <td className="font-mono font-medium text-text-primary">{r.imei_14}</td>
                                         <td>
-                                            {r.status === 'found' ? (
+                                            {r.found ? (
                                                 <span className="badge-success"><CheckCircle size={12} /> Found</span>
                                             ) : (
                                                 <span className="badge-danger"><XCircle size={12} /> Missing</span>
                                             )}
                                         </td>
-                                        <td className="font-mono text-text-secondary">{r.matched_number || <span className="text-text-muted italic">-- Not found --</span>}</td>
+                                        <td className="font-mono text-text-secondary">{r.matched_imei || <span className="text-text-muted italic">-- Not found --</span>}</td>
                                     </tr>
                                 ))}
                             </tbody>

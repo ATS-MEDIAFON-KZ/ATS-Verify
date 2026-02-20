@@ -83,7 +83,7 @@ export default function RisksPage() {
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="input pl-10"
+                        className="input !pl-10"
                         placeholder="Поиск по ИИН/БИН или причине..."
                     />
                 </div>
@@ -156,7 +156,7 @@ export default function RisksPage() {
                         <div className="space-y-4">
                             <div>
                                 <label className="text-sm font-medium text-text-primary block mb-1.5">ИИН / БИН</label>
-                                <input value={newIin} onChange={(e) => setNewIin(e.target.value)} className="input" placeholder="12-значный номер" />
+                                <input value={newIin} onChange={(e) => setNewIin(e.target.value.replace(/\D/g, '').slice(0, 12))} className="input" placeholder="12-значный номер" />
                             </div>
 
                             <div>

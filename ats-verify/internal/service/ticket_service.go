@@ -3,6 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
+	"io"
+	"mime/multipart"
+	"os"
+	"path/filepath"
 
 	"github.com/google/uuid"
 
@@ -31,28 +35,29 @@ type CreateTicketInput struct {
 	Attachments       []string `json:"attachments"`
 	SupportComment    string   `json:"support_comment"`
 	Priority          string   `json:"priority"`
+	LinkedTicketID    *string  `json:"linked_ticket_id,omitempty"`
 }
 
-// Create validates and creates a new support ticket.
-func (s *TicketService) Create(ctx context.Context, input CreateTicketInput, createdBy uuid.UUID) error {
+// Create validates and creates a new support ticket, returning its ID.
+func (s *TicketService) Create(ctx context.Context, input CreateTicketInput, createdBy uuid.UUID) (uuid.UUID, error) {
 	// Validate required fields.
 	if input.IIN == "" {
-		return fmt.Errorf("iin is required")
+		return uuid.Nil, fmt.Errorf("iin is required")
 	}
 	if input.FullName == "" {
-		return fmt.Errorf("full_name is required")
+		return uuid.Nil, fmt.Errorf("full_name is required")
 	}
 	if input.SupportTicketID == "" {
-		return fmt.Errorf("support_ticket_id is required")
+		return uuid.Nil, fmt.Errorf("support_ticket_id is required")
 	}
 	if input.ApplicationNumber == "" {
-		return fmt.Errorf("application_number is required")
+		return uuid.Nil, fmt.Errorf("application_number is required")
 	}
 	if input.DocumentNumber == "" {
-		return fmt.Errorf("document_number is required")
+		return uuid.Nil, fmt.Errorf("document_number is required")
 	}
 	if input.RejectionReason == "" {
-		return fmt.Errorf("rejection_reason is required")
+		return uuid.Nil, fmt.Errorf("rejection_reason is required")
 	}
 
 	priority := models.PriorityMedium
@@ -72,6 +77,7 @@ func (s *TicketService) Create(ctx context.Context, input CreateTicketInput, cre
 		SupportComment:    input.SupportComment,
 		Status:            models.TicketStatusToDo,
 		Priority:          priority,
+		LinkedTicketID:    input.LinkedTicketID,
 		CreatedBy:         createdBy,
 	}
 
@@ -118,4 +124,40 @@ func (s *TicketService) UpdateComment(ctx context.Context, id uuid.UUID, field, 
 // Assign assigns a Customs officer to a ticket.
 func (s *TicketService) Assign(ctx context.Context, id, assigneeID uuid.UUID) error {
 	return s.ticketRepo.AssignTo(ctx, id, assigneeID)
+}
+
+// AddAttachments handles saving files to disk and updating the ticket's attachments list.
+func (s *TicketService) AddAttachments(ctx context.Context, id uuid.UUID, files []*multipart.FileHeader) error {
+	uploadDir := filepath.Join("uploads", "tickets", id.String())
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		return fmt.Errorf("failed to create upload directory: %w", err)
+	}
+
+	var paths []string
+	for _, fileHeader := range files {
+		file, err := fileHeader.Open()
+		if err != nil {
+			return fmt.Errorf("failed to open uploaded file: %w", err)
+		}
+		defer file.Close()
+
+		filename := filepath.Base(fileHeader.Filename)
+		destPath := filepath.Join(uploadDir, filename)
+
+		dest, err := os.Create(destPath)
+		if err != nil {
+			return fmt.Errorf("failed to create destination file: %w", err)
+		}
+		defer dest.Close()
+
+		if _, err := io.Copy(dest, file); err != nil {
+			return fmt.Errorf("failed to copy file contents: %w", err)
+		}
+
+		// Save the relative URL path to serve statically
+		relativePath := fmt.Sprintf("/api/v1/attachments/tickets/%s/%s", id.String(), filename)
+		paths = append(paths, relativePath)
+	}
+
+	return s.ticketRepo.AddAttachments(ctx, id, paths)
 }

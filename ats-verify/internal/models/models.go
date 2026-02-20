@@ -129,6 +129,7 @@ type SupportTicket struct {
 	CustomsComment    string         `json:"customs_comment" db:"customs_comment"`
 	Status            TicketStatus   `json:"status" db:"status"`
 	Priority          TicketPriority `json:"priority" db:"priority"`
+	LinkedTicketID    *string        `json:"linked_ticket_id,omitempty" db:"linked_ticket_id"`
 	CreatedBy         uuid.UUID      `json:"created_by" db:"created_by"`
 	AssignedTo        *uuid.UUID     `json:"assigned_to,omitempty" db:"assigned_to"`
 	CreatedAt         time.Time      `json:"created_at" db:"created_at"`

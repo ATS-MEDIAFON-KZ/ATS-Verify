@@ -2,16 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import api from '../lib/api';
-import { Lock, User, Zap, CheckCircle2 } from 'lucide-react';
-import type { UserRole } from '../types';
-
-const DEMO_ACCOUNTS: { label: string; role: UserRole; bg: string }[] = [
-    { label: 'Admin', role: 'admin', bg: '#8b5cf6' },
-    { label: 'ATS', role: 'ats_staff', bg: '#3b82f6' },
-    { label: 'Таможня', role: 'customs_staff', bg: '#06b6d4' },
-    { label: 'Маркетплейс', role: 'marketplace_staff', bg: '#f59e0b' },
-    { label: 'Paid User', role: 'paid_user', bg: '#22c55e' },
-];
+import { Lock, User, CheckCircle2 } from 'lucide-react';
 
 export default function LoginPage() {
     const [username, setUsername] = useState('');
@@ -32,29 +23,6 @@ export default function LoginPage() {
         } catch (err: unknown) {
             const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
             setError(msg || 'Ошибка авторизации');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleDemoLogin = async (role: UserRole) => {
-        setError('');
-        setLoading(true);
-        // Seed users: username = password for dev
-        const demoUsernames: Record<UserRole, string> = {
-            admin: 'admin',
-            ats_staff: 'ats_staff',
-            customs_staff: 'customs_staff',
-            marketplace_staff: 'marketplace_wb',
-            paid_user: 'admin', // no paid_user seed, fallback to admin
-        };
-        const uname = demoUsernames[role];
-        try {
-            const { data } = await api.post('/auth/login', { username: uname, password: uname });
-            login({ id: data.user.id, username: data.user.username, role: data.user.role, marketplace_prefix: data.user.marketplace_prefix, token: data.token });
-            navigate('/');
-        } catch {
-            setError('Demo-сервер недоступен. Убедитесь что бэкенд запущен.');
         } finally {
             setLoading(false);
         }
@@ -91,7 +59,7 @@ export default function LoginPage() {
                                     type="text"
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
-                                    className="input pl-10"
+                                    className="input !pl-10"
                                     placeholder="Введите логин"
                                     required
                                 />
@@ -106,7 +74,7 @@ export default function LoginPage() {
                                     type="password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="input pl-10"
+                                    className="input !pl-10"
                                     placeholder="Введите пароль"
                                     required
                                 />
@@ -117,26 +85,6 @@ export default function LoginPage() {
                             {loading ? 'Вход...' : 'Войти в систему'}
                         </button>
                     </form>
-
-                    {/* Demo */}
-                    <div className="mt-6 pt-6 border-t border-border">
-                        <div className="flex items-center gap-2 mb-3">
-                            <Zap size={14} className="text-warning" />
-                            <span className="text-xs text-text-muted uppercase tracking-wider font-medium">Demo-вход</span>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            {DEMO_ACCOUNTS.map((acc) => (
-                                <button
-                                    key={acc.role}
-                                    onClick={() => handleDemoLogin(acc.role)}
-                                    style={{ backgroundColor: acc.bg + '18', borderColor: acc.bg + '40', color: acc.bg }}
-                                    className="border px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-105 cursor-pointer"
-                                >
-                                    {acc.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
                 </div>
 
                 <p className="text-center text-text-muted text-xs mt-6">

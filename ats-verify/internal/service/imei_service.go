@@ -96,16 +96,21 @@ func (s *IMEIService) Analyze(csvReader io.Reader, pdfTextContent string) (*mode
 			report.TotalIMEIs++
 			statsMap[colName].Total++
 
-			// Search: does any 15-digit PDF sequence start with this 14-digit prefix?
+			// EXACT BOT LOGIC: Check if PDF text directly contains the 14-digit IMEI.
+			found := strings.Contains(pdfTextContent, imei14)
 			matched := ""
-			for _, seq := range pdf15Digits {
-				if strings.HasPrefix(seq, imei14) {
-					matched = seq
-					break
+			// Provide the 15-digit match to the UI if available, else indicate a generic match.
+			if found {
+				for _, seq := range pdf15Digits {
+					if strings.HasPrefix(seq, imei14) {
+						matched = seq
+						break
+					}
+				}
+				if matched == "" {
+					matched = "(prefix matched in text)"
 				}
 			}
-
-			found := matched != ""
 			if found {
 				report.TotalFound++
 				statsMap[colName].Found++

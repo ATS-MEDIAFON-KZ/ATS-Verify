@@ -6,6 +6,7 @@ import {
     useSensor,
     useSensors,
     closestCorners,
+    useDroppable,
 } from '@dnd-kit/core';
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -19,6 +20,7 @@ import {
     Paperclip,
     X,
     User,
+    UploadCloud,
 } from 'lucide-react';
 import api from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
@@ -104,12 +106,24 @@ function DragOverlayCard({ ticket }: { ticket: SupportTicket }) {
     );
 }
 
+// --- Droppable Column Wrapper ---
+function KanbanColumnWrapper({ id, children }: { id: TicketStatus; children: React.ReactNode }) {
+    const { setNodeRef } = useDroppable({ id });
+    return (
+        <div ref={setNodeRef} className="kanban-column-body" data-column-id={id}>
+            {children}
+        </div>
+    );
+}
+
 // --- Create Ticket Modal ---
 function CreateTicketModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
     const [form, setForm] = useState({
         iin: '', full_name: '', support_ticket_id: '', application_number: '',
         document_number: '', rejection_reason: '', support_comment: '', priority: 'medium',
+        linked_ticket_id: '',
     });
+    const [files, setFiles] = useState<File[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -118,7 +132,16 @@ function CreateTicketModal({ onClose, onCreated }: { onClose: () => void; onCrea
         setLoading(true);
         setError('');
         try {
-            await api.post('/tickets', form);
+            const res = await api.post('/tickets', form);
+            const ticketId = res.data?.id;
+
+            if (files.length > 0 && ticketId) {
+                const fd = new FormData();
+                files.forEach(f => fd.append('attachments', f));
+                await api.post(`/tickets/${ticketId}/attachments`, fd, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+            }
             onCreated();
         } catch (err: unknown) {
             const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Ошибка создания';
@@ -140,22 +163,51 @@ function CreateTicketModal({ onClose, onCreated }: { onClose: () => void; onCrea
                 {error && <div className="badge-danger text-sm mb-4 p-2 rounded-lg">{error}</div>}
                 <form onSubmit={handleSubmit} className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
-                        <input className="input" placeholder="ИИН *" value={form.iin} onChange={(e) => update('iin', e.target.value)} required />
-                        <input className="input" placeholder="ФИО *" value={form.full_name} onChange={(e) => update('full_name', e.target.value)} required />
+                        <input className="input" placeholder="ИИН / БИН *" value={form.iin} onChange={(e) => update('iin', e.target.value.replace(/\D/g, '').slice(0, 12))} required />
+                        <input className="input" placeholder="ФИО / Компания *" value={form.full_name} onChange={(e) => update('full_name', e.target.value)} required />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                        <input className="input" placeholder="ID тикета *" value={form.support_ticket_id} onChange={(e) => update('support_ticket_id', e.target.value)} required />
-                        <input className="input" placeholder="Номер заявки *" value={form.application_number} onChange={(e) => update('application_number', e.target.value)} required />
+                        <input className="input" placeholder="ID тикета *" value={form.support_ticket_id} onChange={(e) => update('support_ticket_id', e.target.value.replace(/[^A-Za-z0-9]/g, '').replace(/(.{3})(.{0,3})?(.{0,4})?/, (_, p1, p2, p3) => [p1, p2, p3].filter(Boolean).join('-')).toUpperCase().slice(0, 12))} required />
+                        <input className="input" placeholder="Номер заявки *" value={form.application_number} onChange={(e) => update('application_number', e.target.value.replace(/\D/g, '').slice(0, 13))} required />
                     </div>
-                    <input className="input" placeholder="Номер документа *" value={form.document_number} onChange={(e) => update('document_number', e.target.value)} required />
-                    <textarea className="input min-h-[80px] resize-none" placeholder="Причина отказа *" value={form.rejection_reason} onChange={(e) => update('rejection_reason', e.target.value)} required />
+                    <div className="grid grid-cols-2 gap-3">
+                        <input className="input" placeholder="Номер документа *" value={form.document_number} onChange={(e) => update('document_number', e.target.value)} required />
+                        <input className="input" placeholder="Связать с ID тикета (опционально)" value={form.linked_ticket_id} onChange={(e) => update('linked_ticket_id', e.target.value.replace(/[^A-Za-z0-9]/g, '').replace(/(.{3})(.{0,3})?(.{0,4})?/, (_, p1, p2, p3) => [p1, p2, p3].filter(Boolean).join('-')).toUpperCase().slice(0, 12))} />
+                    </div>
+                    <select className="input" value={form.rejection_reason} onChange={(e) => update('rejection_reason', e.target.value)} required>
+                        <option value="" disabled>Причина отказа *</option>
+                        <option value="Документ не найден">Документ не найден</option>
+                        <option value="Документ не связан с подтверждением ввоза устройства на территорию Казахстана">Документ не связан с подтверждением ввоза устройства на территорию Казахстана</option>
+                        <option value="ИИН/БИН не соответствует">ИИН/БИН не соответствует</option>
+                        <option value="IMEI/устройства не найдены в документе">IMEI/устройства не найдены в документе</option>
+                        <option value="Количество устройств не соответствует">Количество устройств не соответствует</option>
+                    </select>
                     <textarea className="input min-h-[60px] resize-none" placeholder="Комментарий поддержки" value={form.support_comment} onChange={(e) => update('support_comment', e.target.value)} />
                     <select className="input" value={form.priority} onChange={(e) => update('priority', e.target.value)}>
                         <option value="low">Низкий приоритет</option>
                         <option value="medium">Средний приоритет</option>
                         <option value="high">Высокий приоритет</option>
                     </select>
-                    <button type="submit" disabled={loading} className="btn-primary w-full justify-center">
+
+                    <div className="mb-2">
+                        <label className="text-sm font-medium text-blue-600 flex items-center justify-center gap-2 cursor-pointer p-3 border border-dashed border-blue-200 bg-blue-50/50 rounded-lg hover:bg-blue-50 transition-colors">
+                            <UploadCloud size={18} />
+                            <span>Прикрепить документы (PDF, Фото, Word)</span>
+                            <input type="file" className="hidden" multiple accept=".pdf,image/*,.doc,.docx" onChange={(e) => {
+                                if (e.target.files) {
+                                    setFiles(Array.from(e.target.files));
+                                }
+                            }} />
+                        </label>
+                        {files.length > 0 && (
+                            <div className="mt-2 text-xs text-text-muted text-center bg-bg-muted p-2 rounded">
+                                Выбрано файлов: {files.length} <br />
+                                <span className="opacity-75">{files.map(f => f.name).join(', ')}</span>
+                            </div>
+                        )}
+                    </div>
+
+                    <button type="submit" disabled={loading} className="btn-primary w-full justify-center mt-2">
                         {loading ? 'Создание...' : 'Создать тикет'}
                     </button>
                 </form>
@@ -168,11 +220,15 @@ function CreateTicketModal({ onClose, onCreated }: { onClose: () => void; onCrea
 function TicketDetailPanel({ ticket, onClose, onUpdated }: { ticket: SupportTicket; onClose: () => void; onUpdated: () => void }) {
     const { user } = useAuth();
     const [comment, setComment] = useState('');
-    const isCustoms = user?.role === 'customs_staff' || user?.role === 'admin';
+
+    // Explicit role checks based on requirements
+    const canEditSupportComment = user?.role === 'ats_staff';
+    const canEditCustomsComment = user?.role === 'customs_staff';
+    const canEditAny = canEditSupportComment || canEditCustomsComment;
 
     const handleAddComment = async () => {
-        if (!comment.trim()) return;
-        const field = isCustoms ? 'customs_comment' : 'support_comment';
+        if (!comment.trim() || !canEditAny) return;
+        const field = canEditCustomsComment ? 'customs_comment' : 'support_comment';
         try {
             await api.patch(`/tickets/${ticket.id}/comment`, { field, value: comment });
             setComment('');
@@ -208,6 +264,30 @@ function TicketDetailPanel({ ticket, onClose, onUpdated }: { ticket: SupportTick
                     </div>
                 </div>
 
+                {ticket.linked_ticket_id && (
+                    <div className="mb-5 p-3 bg-blue-50/50 border border-blue-100 rounded-lg">
+                        <p className="text-[11px] text-blue-500 uppercase tracking-wider mb-0.5">Связанный тикет</p>
+                        <p className="text-sm font-medium text-blue-700">{ticket.linked_ticket_id}</p>
+                    </div>
+                )}
+
+                {ticket.attachments && ticket.attachments.length > 0 && (
+                    <div className="mb-5">
+                        <p className="text-[11px] text-text-muted uppercase tracking-wider mb-2">Прикрепленные файлы</p>
+                        <div className="flex flex-wrap gap-2">
+                            {ticket.attachments.map((url, idx) => {
+                                const filename = url.split('/').pop();
+                                return (
+                                    <a key={idx} href={`http://localhost:8080${url}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-muted border border-border rounded-lg text-sm text-primary hover:bg-primary-light transition-colors">
+                                        <Paperclip size={14} />
+                                        <span className="truncate max-w-[150px]">{filename}</span>
+                                    </a>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
                 {ticket.support_comment && (
                     <div className="mb-3 p-3 rounded-lg border border-border">
                         <p className="text-[11px] text-text-muted uppercase tracking-wider mb-1">Комментарий поддержки</p>
@@ -222,18 +302,20 @@ function TicketDetailPanel({ ticket, onClose, onUpdated }: { ticket: SupportTick
                     </div>
                 )}
 
-                <div className="mt-4 flex gap-2">
-                    <input
-                        className="input flex-1"
-                        placeholder={isCustoms ? 'Комментарий таможни...' : 'Комментарий поддержки...'}
-                        value={comment}
-                        onChange={(e) => setComment(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
-                    />
-                    <button onClick={handleAddComment} className="btn-primary">
-                        <MessageSquare size={14} />
-                    </button>
-                </div>
+                {canEditAny && (
+                    <div className="mt-4 flex gap-2">
+                        <input
+                            className="input flex-1"
+                            placeholder={canEditCustomsComment ? 'Комментарий таможни...' : 'Комментарий поддержки...'}
+                            value={comment}
+                            onChange={(e) => setComment(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
+                        />
+                        <button onClick={handleAddComment} className="btn-primary">
+                            <MessageSquare size={14} />
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -277,18 +359,37 @@ export default function TicketsPage() {
         if (!over) return;
 
         const ticketId = active.id as string;
-        const newStatus = over.id as TicketStatus;
+        // The over.id can be either another ticket ID (if dropping on a ticket)
+        // or a column ID (if dropping on an empty column area).
+        // Let's determine the target status based on where it was dropped.
+        let newStatus: TicketStatus | null = null;
+
+        if (COLUMNS.some(c => c.id === over.id)) {
+            newStatus = over.id as TicketStatus;
+        } else {
+            // Find the ticket we dropped onto to get its status
+            const overTicket = tickets.find(t => t.id === over.id);
+            if (overTicket) {
+                newStatus = overTicket.status;
+            }
+        }
+
+        if (!newStatus) return;
 
         const ticket = tickets.find((t) => t.id === ticketId);
         if (!ticket || ticket.status === newStatus) return;
 
         // Optimistic update.
-        setTickets((prev) => prev.map((t) => t.id === ticketId ? { ...t, status: newStatus } : t));
+        setTickets((prev) => prev.map((t) => t.id === ticketId ? { ...t, status: newStatus as TicketStatus } : t));
 
         try {
             await api.patch(`/tickets/${ticketId}/status`, { status: newStatus });
-        } catch {
+        } catch (err) {
+            console.error('Failed to update ticket status:', err);
             // Rollback on error.
+            if ((err as any).response?.status === 403) {
+                alert('У вас нет прав для перемещения тикета в эту колонку.');
+            }
             fetchTickets();
         }
     };
@@ -355,10 +456,7 @@ export default function TicketsPage() {
                                         </div>
                                         <span className="kanban-count">{columnTickets.length}</span>
                                     </div>
-                                    <div
-                                        className="kanban-column-body"
-                                        data-column-id={col.id}
-                                    >
+                                    <KanbanColumnWrapper id={col.id}>
                                         {columnTickets.length === 0 ? (
                                             <div className="kanban-empty">
                                                 <p className="text-xs text-text-muted">Нет тикетов</p>
@@ -372,7 +470,7 @@ export default function TicketsPage() {
                                                 />
                                             ))
                                         )}
-                                    </div>
+                                    </KanbanColumnWrapper>
                                 </div>
                             </SortableContext>
                         );

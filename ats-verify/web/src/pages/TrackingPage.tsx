@@ -1,34 +1,67 @@
 import { useState } from 'react';
-import { MapPin, Search, Truck, CheckCircle } from 'lucide-react';
+import { MapPin, Search, Truck, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
+import api from '../lib/api';
 
-interface TrackingStep {
-    date: string;
-    status: string;
+interface TrackingEvent {
+    id: string;
+    status_code: string;
+    description: string;
     location: string;
-    done: boolean;
+    event_time: string;
+    source: string;
 }
 
-const MOCK_STEPS: TrackingStep[] = [
-    { date: '2026-02-15 14:30', status: 'Вручено получателю', location: 'Алматы, KZ', done: true },
-    { date: '2026-02-14 09:15', status: 'Прибыло в пункт выдачи', location: 'Алматы, KZ', done: true },
-    { date: '2026-02-12 18:00', status: 'В пути', location: 'Караганда → Алматы', done: true },
-    { date: '2026-02-10 12:00', status: 'Прибыло в страну', location: 'Хоргос, KZ', done: true },
-    { date: '2026-02-08 06:00', status: 'Отправлено', location: 'Гуанчжоу, CN', done: true },
-];
+interface TrackingResponse {
+    track_number: string;
+    events: TrackingEvent[] | null;
+    provider: string;
+    external_url?: string;
+    parcel?: {
+        track_number: string;
+        marketplace: string;
+        product_name: string;
+    };
+}
 
 export default function TrackingPage() {
     const [trackNumber, setTrackNumber] = useState('');
     const [loading, setLoading] = useState(false);
-    const [steps, setSteps] = useState<TrackingStep[]>([]);
-    const [carrier, setCarrier] = useState('');
+    const [result, setResult] = useState<TrackingResponse | null>(null);
+    const [error, setError] = useState('');
 
     const handleTrack = async () => {
-        if (!trackNumber.trim()) return;
+        const trimmed = trackNumber.trim();
+        if (!trimmed) return;
         setLoading(true);
-        await new Promise(r => setTimeout(r, 800));
-        setSteps(MOCK_STEPS);
-        setCarrier('Казпочта');
-        setLoading(false);
+        setError('');
+        setResult(null);
+
+        try {
+            const { data } = await api.get<TrackingResponse>(`/tracking/${encodeURIComponent(trimmed)}`);
+            setResult(data);
+        } catch (err: unknown) {
+            const axiosErr = err as { response?: { status: number; data?: { error?: string } } };
+            if (axiosErr.response?.status === 404) {
+                setError('Трек-номер не найден ни в одной системе (Казпочта/СДЭК). Проверьте правильность номера.');
+            } else {
+                setError('Ошибка при отслеживании. Попробуйте позже.');
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const formatDate = (iso: string) => {
+        if (!iso) return '';
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return iso;
+        return d.toLocaleString('ru-RU', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
     };
 
     return (
@@ -48,8 +81,8 @@ export default function TrackingPage() {
                             value={trackNumber}
                             onChange={(e) => setTrackNumber(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleTrack()}
-                            className="input pl-10"
-                            placeholder="Введите трек-номер (например, KZ1234567890)"
+                            className="input !pl-10"
+                            placeholder="Введите трек-номер (например, LK721664764CN или 10207062728)"
                         />
                     </div>
                     <button onClick={handleTrack} disabled={loading || !trackNumber.trim()} className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
@@ -59,33 +92,65 @@ export default function TrackingPage() {
                 </div>
             </div>
 
+            {/* Error */}
+            {error && (
+                <div className="card p-6 mb-6 border-danger/20 bg-danger-light">
+                    <div className="flex items-center gap-3 text-danger">
+                        <AlertCircle size={20} />
+                        <p className="text-sm font-medium">{error}</p>
+                    </div>
+                </div>
+            )}
+
+            {/* CDEK External Link (when server can't fetch directly) */}
+            {result && result.external_url && (!result.events || result.events.length === 0) && (
+                <div className="card p-6 mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-base font-semibold text-text-primary">Отслеживание через {result.provider}</h3>
+                        <span className="badge-info">{result.provider}</span>
+                    </div>
+                    <p className="text-sm text-text-secondary mb-4">
+                        Для отслеживания посылок СДЭК откройте официальную страницу:
+                    </p>
+                    <a
+                        href={result.external_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-primary inline-flex items-center gap-2"
+                    >
+                        <ExternalLink size={16} />
+                        Отследить на сайте СДЭК
+                    </a>
+                </div>
+            )}
+
             {/* Timeline */}
-            {steps.length > 0 && (
+            {result && result.events && result.events.length > 0 && (
                 <div className="card p-6">
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="text-base font-semibold text-text-primary">История доставки</h3>
-                        <span className="badge-info">{carrier}</span>
+                        <span className="badge-info">{result.provider}</span>
                     </div>
 
                     <div className="space-y-0">
-                        {steps.map((step, i) => (
-                            <div key={i} className="flex gap-4">
+                        {result.events!.map((event, i) => (
+                            <div key={event.id || i} className="flex gap-4">
                                 {/* Timeline line */}
                                 <div className="flex flex-col items-center">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${i === 0 ? 'bg-success text-white' : 'bg-primary-light text-primary'
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${i === 0 ? 'bg-success text-white' : 'bg-primary-light text-primary'
                                         }`}>
                                         {i === 0 ? <CheckCircle size={16} /> : <MapPin size={14} />}
                                     </div>
-                                    {i < steps.length - 1 && (
+                                    {i < result.events!.length - 1 && (
                                         <div className="w-px h-12 bg-border" />
                                     )}
                                 </div>
 
                                 {/* Content */}
-                                <div className={`pb-6 ${i < steps.length - 1 ? '' : 'pb-0'}`}>
-                                    <p className="text-sm font-medium text-text-primary">{step.status}</p>
-                                    <p className="text-xs text-text-secondary mt-0.5">{step.location}</p>
-                                    <p className="text-xs text-text-muted mt-0.5">{step.date}</p>
+                                <div className={`pb-6 ${i < result.events.length - 1 ? '' : 'pb-0'}`}>
+                                    <p className="text-sm font-medium text-text-primary">{event.description}</p>
+                                    <p className="text-xs text-text-secondary mt-0.5">{event.location}</p>
+                                    <p className="text-xs text-text-muted mt-0.5">{formatDate(event.event_time)}</p>
                                 </div>
                             </div>
                         ))}

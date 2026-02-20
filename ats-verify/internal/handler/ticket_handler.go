@@ -27,11 +27,13 @@ func (h *TicketHandler) RegisterRoutes(mux *http.ServeMux, authMw func(http.Hand
 	createMw := middleware.RequireRole(models.RoleATSStaff, models.RoleAdmin)
 	viewMw := middleware.RequireRole(models.RoleATSStaff, models.RoleCustoms, models.RoleAdmin)
 	updateMw := middleware.RequireRole(models.RoleCustoms, models.RoleAdmin)
+	statusMw := middleware.RequireRole(models.RoleATSStaff, models.RoleCustoms, models.RoleAdmin)
 
 	mux.Handle("POST /api/v1/tickets", authMw(createMw(http.HandlerFunc(h.Create))))
 	mux.Handle("GET /api/v1/tickets", authMw(viewMw(http.HandlerFunc(h.List))))
 	mux.Handle("GET /api/v1/tickets/{id}", authMw(viewMw(http.HandlerFunc(h.GetByID))))
-	mux.Handle("PATCH /api/v1/tickets/{id}/status", authMw(updateMw(http.HandlerFunc(h.UpdateStatus))))
+	mux.Handle("POST /api/v1/tickets/{id}/attachments", authMw(createMw(http.HandlerFunc(h.UploadAttachments))))
+	mux.Handle("PATCH /api/v1/tickets/{id}/status", authMw(statusMw(http.HandlerFunc(h.UpdateStatus))))
 	mux.Handle("PATCH /api/v1/tickets/{id}/comment", authMw(viewMw(http.HandlerFunc(h.UpdateComment))))
 	mux.Handle("PATCH /api/v1/tickets/{id}/assign", authMw(updateMw(http.HandlerFunc(h.Assign))))
 }
@@ -56,7 +58,8 @@ func (h *TicketHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.ticketService.Create(r.Context(), input, createdBy); err != nil {
+	newID, err := h.ticketService.Create(r.Context(), input, createdBy)
+	if err != nil {
 		if strings.Contains(err.Error(), "is required") {
 			Error(w, http.StatusBadRequest, err.Error())
 			return
@@ -65,7 +68,10 @@ func (h *TicketHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	JSON(w, http.StatusCreated, map[string]string{"message": "ticket created"})
+	JSON(w, http.StatusCreated, map[string]string{
+		"message": "ticket created",
+		"id":      newID.String(),
+	})
 }
 
 // List handles GET /api/v1/tickets?status=to_do
@@ -200,4 +206,34 @@ func (h *TicketHandler) Assign(w http.ResponseWriter, r *http.Request) {
 	}
 
 	JSON(w, http.StatusOK, map[string]string{"message": "ticket assigned"})
+}
+
+// UploadAttachments handles POST /api/v1/tickets/{id}/attachments
+func (h *TicketHandler) UploadAttachments(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		Error(w, http.StatusBadRequest, "invalid ticket id")
+		return
+	}
+
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		Error(w, http.StatusBadRequest, "failed to parse multipart form")
+		return
+	}
+
+	files := r.MultipartForm.File["attachments"]
+	if len(files) == 0 {
+		JSON(w, http.StatusOK, map[string]string{"message": "no attachments provided"})
+		return
+	}
+
+	// Pass files to service to handle storage and updating DB
+	// Since we need multipart.FileHeader, we'll pass those to the service layer.
+	err = h.ticketService.AddAttachments(r.Context(), id, files)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	JSON(w, http.StatusOK, map[string]string{"message": "attachments uploaded successfully"})
 }

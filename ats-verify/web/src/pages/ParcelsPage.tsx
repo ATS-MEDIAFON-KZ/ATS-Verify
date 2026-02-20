@@ -72,7 +72,7 @@ export default function ParcelsPage() {
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="input pl-10"
+                            className="input !pl-10"
                             placeholder="Поиск по треку или товару..."
                         />
                     </div>

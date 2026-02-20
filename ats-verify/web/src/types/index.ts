@@ -86,6 +86,7 @@ export interface SupportTicket {
     customs_comment: string;
     status: TicketStatus;
     priority: TicketPriority;
+    linked_ticket_id?: string;
     created_by: string;
     assigned_to?: string;
     created_at: string;
