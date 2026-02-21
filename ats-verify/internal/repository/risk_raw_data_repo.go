@@ -180,16 +180,16 @@ type FlipFlopFlag struct {
 func (r *RiskRawDataRepository) GetFlipFlopStatusReport(ctx context.Context) ([]FlipFlopFlag, error) {
 	query := `
 		SELECT document, 
-               SUM(CASE WHEN status ILIKE '%одобрен%' OR status ILIKE '%принят%' OR status ILIKE '%выдан%' OR status ILIKE '%утвержден%' THEN 1 ELSE 0 END) as approved_count,
-               SUM(CASE WHEN status ILIKE '%отказ%' OR status ILIKE '%отклонен%' THEN 1 ELSE 0 END) as rejected_count
+               SUM(CASE WHEN status ILIKE '%одобрен%' OR status ILIKE '%принят%' OR status ILIKE '%выдан%' OR status ILIKE '%утвержден%' OR status ILIKE '%accepted%' THEN 1 ELSE 0 END) as approved_count,
+               SUM(CASE WHEN status ILIKE '%отказ%' OR status ILIKE '%отклонен%' OR status ILIKE '%rejected%' THEN 1 ELSE 0 END) as rejected_count
 		FROM risk_raw_data
 		WHERE document IS NOT NULL AND document != ''
 		GROUP BY document
-		HAVING SUM(CASE WHEN status ILIKE '%одобрен%' OR status ILIKE '%принят%' OR status ILIKE '%выдан%' OR status ILIKE '%утвержден%' THEN 1 ELSE 0 END) > 0 
-           AND SUM(CASE WHEN status ILIKE '%отказ%' OR status ILIKE '%отклонен%' THEN 1 ELSE 0 END) > 0
+		HAVING SUM(CASE WHEN status ILIKE '%одобрен%' OR status ILIKE '%принят%' OR status ILIKE '%выдан%' OR status ILIKE '%утвержден%' OR status ILIKE '%accepted%' THEN 1 ELSE 0 END) > 0 
+           AND SUM(CASE WHEN status ILIKE '%отказ%' OR status ILIKE '%отклонен%' OR status ILIKE '%rejected%' THEN 1 ELSE 0 END) > 0
         ORDER BY 
-            (SUM(CASE WHEN status ILIKE '%одобрен%' OR status ILIKE '%принят%' OR status ILIKE '%выдан%' OR status ILIKE '%утвержден%' THEN 1 ELSE 0 END) + 
-             SUM(CASE WHEN status ILIKE '%отказ%' OR status ILIKE '%отклонен%' THEN 1 ELSE 0 END)) DESC
+            (SUM(CASE WHEN status ILIKE '%одобрен%' OR status ILIKE '%принят%' OR status ILIKE '%выдан%' OR status ILIKE '%утвержден%' OR status ILIKE '%accepted%' THEN 1 ELSE 0 END) + 
+             SUM(CASE WHEN status ILIKE '%отказ%' OR status ILIKE '%отклонен%' OR status ILIKE '%rejected%' THEN 1 ELSE 0 END)) DESC
 		LIMIT 100
 	`
 	rows, err := r.db.QueryContext(ctx, query)

@@ -24,7 +24,8 @@ func NewRiskAnalysisHandler(riskAnalysisService *service.RiskAnalysisService) *R
 
 // RegisterRoutes registers risk analysis routes.
 func (h *RiskAnalysisHandler) RegisterRoutes(mux *http.ServeMux, authMw func(http.Handler) http.Handler) {
-	roleMw := middleware.RequireRole(models.RoleAdmin)
+	// Analytics and Reports should be visible to Admin, ATS Staff, and Customs Officers.
+	roleMw := middleware.RequireRole(models.RoleAdmin, models.RoleATSStaff, models.RoleCustoms)
 	mux.Handle("POST /api/v1/risks/analyze", authMw(roleMw(http.HandlerFunc(h.AnalyzeCSV))))
 	mux.Handle("GET /api/v1/risks/reports", authMw(roleMw(http.HandlerFunc(h.GetReports))))
 }
