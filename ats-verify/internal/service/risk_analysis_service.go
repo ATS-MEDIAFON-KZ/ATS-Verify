@@ -42,10 +42,10 @@ type RiskCSVRow struct {
 
 // Reports output structures
 type AnalyticsReports struct {
-	DocumentReuse    []repository.DocumentReuseFlag `json:"document_reuse"`
-	DocumentIINReuse []repository.DocumentReuseFlag `json:"document_iin_reuse"`
-	IINFrequency     []repository.FrequencyFlag     `json:"iin_frequency"`
-	FlipFlopStatus   []repository.FlipFlopFlag      `json:"flip_flop_status"`
+	DocumentReuse    []repository.DocumentReuseFlag    `json:"document_reuse"`
+	DocumentIINReuse []repository.DocumentIINReuseFlag `json:"document_iin_reuse"`
+	IINFrequency     []repository.FrequencyFlag        `json:"high_frequency_iin"`
+	FlipFlopStatus   []repository.FlipFlopFlag         `json:"flip_flop"`
 }
 
 // AnalyzeCSV processes the risk analysis CSV and detects anomalies.

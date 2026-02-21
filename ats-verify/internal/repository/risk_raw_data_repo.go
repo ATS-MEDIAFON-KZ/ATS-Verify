@@ -67,19 +67,21 @@ func (r *RiskRawDataRepository) BulkInsert(ctx context.Context, rows []models.Ri
 
 // DocumentReuseFlag indicates the same document used across different IINs/BINs.
 type DocumentReuseFlag struct {
-	DocNumber string `json:"doc_number" db:"document"`
-	Count     int    `json:"count" db:"count"`
+	DocNumber  string `json:"document_number"`
+	UsageCount int    `json:"usage_count"`
+	LastUsed   string `json:"last_used"`
 }
 
 // GetDocumentReuseReport Returns documents used more than once.
 func (r *RiskRawDataRepository) GetDocumentReuseReport(ctx context.Context) ([]DocumentReuseFlag, error) {
 	query := `
-		SELECT document, COUNT(*) as count 
+		SELECT document, COUNT(*) as usage_count, COALESCE(MAX(report_date), MAX(created_at::text)) as last_used
 		FROM risk_raw_data 
 		WHERE document IS NOT NULL AND document != ''
 		GROUP BY document 
 		HAVING COUNT(*) > 1 
-		ORDER BY count DESC
+		ORDER BY usage_count DESC
+		LIMIT 100
 	`
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -90,7 +92,7 @@ func (r *RiskRawDataRepository) GetDocumentReuseReport(ctx context.Context) ([]D
 	var results []DocumentReuseFlag
 	for rows.Next() {
 		var flag DocumentReuseFlag
-		if err := rows.Scan(&flag.DocNumber, &flag.Count); err != nil {
+		if err := rows.Scan(&flag.DocNumber, &flag.UsageCount, &flag.LastUsed); err != nil {
 			return nil, err
 		}
 		results = append(results, flag)
@@ -98,15 +100,22 @@ func (r *RiskRawDataRepository) GetDocumentReuseReport(ctx context.Context) ([]D
 	return results, nil
 }
 
+type DocumentIINReuseFlag struct {
+	DocNumber string `json:"document_number"`
+	IINCount  int    `json:"iin_count"`
+	IINs      string `json:"iins"`
+}
+
 // GetDocumentIINReuseReport Returns documents used by MORE THAN ONE DISTINCT IIN/BIN.
-func (r *RiskRawDataRepository) GetDocumentIINReuseReport(ctx context.Context) ([]DocumentReuseFlag, error) {
+func (r *RiskRawDataRepository) GetDocumentIINReuseReport(ctx context.Context) ([]DocumentIINReuseFlag, error) {
 	query := `
-		SELECT document, COUNT(DISTINCT iin_bin) as count 
+		SELECT document, COUNT(DISTINCT iin_bin) as iin_count, string_agg(DISTINCT iin_bin, ', ') as iins
 		FROM risk_raw_data 
 		WHERE document IS NOT NULL AND document != ''
 		GROUP BY document 
 		HAVING COUNT(DISTINCT iin_bin) > 1 
-		ORDER BY count DESC
+		ORDER BY iin_count DESC
+		LIMIT 100
 	`
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -114,10 +123,10 @@ func (r *RiskRawDataRepository) GetDocumentIINReuseReport(ctx context.Context) (
 	}
 	defer rows.Close()
 
-	var results []DocumentReuseFlag
+	var results []DocumentIINReuseFlag
 	for rows.Next() {
-		var flag DocumentReuseFlag
-		if err := rows.Scan(&flag.DocNumber, &flag.Count); err != nil {
+		var flag DocumentIINReuseFlag
+		if err := rows.Scan(&flag.DocNumber, &flag.IINCount, &flag.IINs); err != nil {
 			return nil, err
 		}
 		results = append(results, flag)
@@ -127,17 +136,21 @@ func (r *RiskRawDataRepository) GetDocumentIINReuseReport(ctx context.Context) (
 
 // FrequencyFlag indicates an IIN/BIN with unusually high application count.
 type FrequencyFlag struct {
-	IINBIN string `json:"iin_bin" db:"iin_bin"`
-	Count  int    `json:"count" db:"count"`
+	IINBIN     string `json:"iin"`
+	UsageCount int    `json:"usage_count"`
+	LastUsed   string `json:"last_used"`
 }
 
 // GetIINFrequencyReport Returns IINs grouped by frequency, sorted desc.
 func (r *RiskRawDataRepository) GetIINFrequencyReport(ctx context.Context) ([]FrequencyFlag, error) {
 	query := `
-		SELECT iin_bin, COUNT(*) as count 
+		SELECT iin_bin, COUNT(*) as usage_count, COALESCE(MAX(report_date), MAX(created_at::text)) as last_used
 		FROM risk_raw_data 
+		WHERE iin_bin IS NOT NULL AND iin_bin != '' AND iin_bin != '0'
 		GROUP BY iin_bin 
-		ORDER BY count DESC
+		HAVING COUNT(*) > 5
+		ORDER BY usage_count DESC
+		LIMIT 100
 	`
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -148,7 +161,7 @@ func (r *RiskRawDataRepository) GetIINFrequencyReport(ctx context.Context) ([]Fr
 	var results []FrequencyFlag
 	for rows.Next() {
 		var flag FrequencyFlag
-		if err := rows.Scan(&flag.IINBIN, &flag.Count); err != nil {
+		if err := rows.Scan(&flag.IINBIN, &flag.UsageCount, &flag.LastUsed); err != nil {
 			return nil, err
 		}
 		results = append(results, flag)
@@ -158,21 +171,24 @@ func (r *RiskRawDataRepository) GetIINFrequencyReport(ctx context.Context) ([]Fr
 
 // FlipFlopFlag indicates a document with contradictory status changes over time.
 type FlipFlopFlag struct {
-	DocNumber string `json:"doc_number"`
-	IINBIN    string `json:"iin_bin"`
-	Statuses  string `json:"statuses"` // aggregated view "status A -> status B"
+	DocNumber     string `json:"document_number"`
+	ApprovedCount int    `json:"approved_count"`
+	RejectedCount int    `json:"rejected_count"`
 }
 
 // GetFlipFlopStatusReport Detects flip-flop statuses for the same document over time.
 func (r *RiskRawDataRepository) GetFlipFlopStatusReport(ctx context.Context) ([]FlipFlopFlag, error) {
-	// A simple approach is finding documents that have > 1 distinct status.
-	// For deeper time-based flip-flop, string_agg can group statuses ordered by date.
 	query := `
-		SELECT document, iin_bin, string_agg(status, ' -> ' ORDER BY report_date ASC) as statuses
+		SELECT document, 
+               SUM(CASE WHEN status ILIKE '%одобрен%' OR status ILIKE '%принят%' OR status ILIKE '%выдан%' OR status ILIKE '%утвержден%' THEN 1 ELSE 0 END) as approved_count,
+               SUM(CASE WHEN status ILIKE '%отказ%' OR status ILIKE '%отклонен%' THEN 1 ELSE 0 END) as rejected_count
 		FROM risk_raw_data
 		WHERE document IS NOT NULL AND document != ''
-		GROUP BY document, iin_bin
-		HAVING COUNT(DISTINCT status) > 1
+		GROUP BY document
+		HAVING SUM(CASE WHEN status ILIKE '%одобрен%' OR status ILIKE '%принят%' OR status ILIKE '%выдан%' OR status ILIKE '%утвержден%' THEN 1 ELSE 0 END) > 0 
+           AND SUM(CASE WHEN status ILIKE '%отказ%' OR status ILIKE '%отклонен%' THEN 1 ELSE 0 END) > 0
+        ORDER BY approved_count + rejected_count DESC
+		LIMIT 100
 	`
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -183,7 +199,7 @@ func (r *RiskRawDataRepository) GetFlipFlopStatusReport(ctx context.Context) ([]
 	var results []FlipFlopFlag
 	for rows.Next() {
 		var flag FlipFlopFlag
-		if err := rows.Scan(&flag.DocNumber, &flag.IINBIN, &flag.Statuses); err != nil {
+		if err := rows.Scan(&flag.DocNumber, &flag.ApprovedCount, &flag.RejectedCount); err != nil {
 			return nil, err
 		}
 		results = append(results, flag)
