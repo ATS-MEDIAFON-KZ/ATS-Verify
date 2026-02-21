@@ -23,6 +23,7 @@ interface IMEIReport {
     total_missing: number;
     column_stats: IMEIColumnStats[];
     results: IMEIResult[];
+    text_report?: string;
 }
 
 export default function IMEIPage() {
@@ -222,6 +223,17 @@ export default function IMEIPage() {
                             <span className="text-sm text-text-muted">Showing {results.length} entries</span>
                         </div>
                     </div>
+
+                    {report.text_report && (
+                        <div className="mt-8 card overflow-hidden">
+                            <div className="px-6 py-4 border-b border-border">
+                                <h3 className="text-base font-semibold text-text-primary">Детальный текстовый отчет</h3>
+                            </div>
+                            <div className="p-6 bg-bg-muted font-mono text-xs whitespace-pre-wrap text-text-secondary whitespace-pre-wrap">
+                                {report.text_report}
+                            </div>
+                        </div>
+                    )}
                 </>
             )}
         </div>

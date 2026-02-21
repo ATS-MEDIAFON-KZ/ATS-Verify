@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 	"strings"
 
@@ -42,9 +43,10 @@ func (h *RiskAnalysisHandler) AnalyzeCSV(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	csvFile, _, err := r.FormFile("csv_file")
+	csvFile, _, err := r.FormFile("file")
 	if err != nil {
-		Error(w, http.StatusBadRequest, "csv_file is required")
+		log.Printf("Analytics Upload Error: %v", err)
+		Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	defer csvFile.Close()

@@ -11,6 +11,7 @@ import {
     LogOut,
     CheckCircle2,
     Ticket,
+    BarChart3,
 } from 'lucide-react';
 import type { UserRole } from '../types';
 
@@ -24,11 +25,12 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
     { to: '/', label: 'Дашборд', icon: <LayoutDashboard size={18} />, roles: ['admin', 'ats_staff', 'customs_staff', 'marketplace_staff', 'paid_user'] },
     { to: '/parcels', label: 'Посылки', icon: <Package size={18} />, roles: ['admin', 'customs_staff'] },
-    { to: '/upload', label: 'Загрузка CSV', icon: <Upload size={18} />, roles: ['marketplace_staff'] },
+    { to: '/upload', label: 'Загрузка CSV', icon: <Upload size={18} />, roles: ['marketplace_staff', 'admin'] },
     { to: '/track', label: 'Поиск трека', icon: <Search size={18} />, roles: ['ats_staff', 'admin'] },
     { to: '/tracking', label: 'Отслеживание', icon: <MapPin size={18} />, roles: ['admin', 'ats_staff', 'customs_staff', 'marketplace_staff', 'paid_user'] },
     { to: '/imei', label: 'IMEI Проверка', icon: <Smartphone size={18} />, roles: ['customs_staff', 'paid_user'] },
     { to: '/risks', label: 'Риски', icon: <ShieldAlert size={18} />, roles: ['admin', 'customs_staff'] },
+    { to: '/analytics', label: 'Аналитика', icon: <BarChart3 size={18} />, roles: ['admin', 'ats_staff', 'customs_staff'] },
     { to: '/tickets', label: 'Тикеты', icon: <Ticket size={18} />, roles: ['ats_staff', 'customs_staff', 'admin'] },
 ];
 

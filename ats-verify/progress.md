@@ -55,3 +55,47 @@ description: Chronological log of development sessions, completed actions, and i
 * **Action:** Added SPA static file serving to `cmd/server/main.go` with index.html fallback.
 * **Result:** `go build ./...` ✅ + `npm run build` ✅. Phase 4+5 core complete.
 * **Remaining:** IMEI text report generator, E2E testing.
+**Session: HOTFIX Audit & Local Stabilization**
+* **Audit:** Found bottleneck in `internal/config/config.go` failing to load `.env` file locally. Verified that CORS (`*`) and Routing (`/api/v1/`) accurately correspond with Vite's proxy configurations.
+* **Action:** Installed `joho/godotenv` and modified `config.go` to explicitly load `.env` upon startup.
+* **Action:** Generated `init.sql` at root level from the existing schema to explicitly map the DB structure for initialization.
+* **Result:** `go mod tidy` ✅. Local environment is now robust and `.env` variables (including JWT and DB connection strings) load reliably outside Docker.
+* **Next Steps:** Proceed with E2E Testing using the instructions generated.
+
+**Session: 2026-02-21 (Global Business Logic Update)**
+* **Action:** Fully aligned `AuthService`, `ParcelService`, and `RiskAnalysisService` to the executive `GOALS.md` robust logic specification.
+* **Result:**
+  - `AuthService`: Hard-coded role-based assignments during registration. Addresses starting with `q.aldaniyazov` or `y.sedochenko` at `@ats-mediafon.kz` are auto-approved Admins. Other `@ats-mediafon.kz` are ATS Staff. Overrides default unapproved `marketplace_staff` role.
+  - `ParcelService`: Configured strict parsing of CSV files with total skip for incomplete rows. Integrated JSON API upload. Ensured `upsert` mechanism skips existing `is_used` tracks while effectively updating unused tracks. Imposed role-based mapping to ignore CSV marketplace column if the token states `RoleMarketplace`.
+  - `RiskAnalysisService & Repo`: 4 analytical SQL reports hooked into the handler: Document reuse (>1 count), Document IIN flip-flop, IIN frequency, and flip-flops per document status.
+  - `TicketHandler & Transport`: Verified cross-layer data hydration. `SupportTickets` query automatically joins `iin_bin_risks` yielding augmented `risk_level` and `risk_comment` directly into JSON. Fixed PostgreSQL string array scanning logic in `ticket_repo.go`.
+* **Status:** Passed `go build ./...` with zero errors. All layers integrated cleanly.
+* **Next Steps:** Integration testing and potential UI connection for the new analytical payloads and JSON endpoints.
+
+**Session: 2026-02-21 (IMEI Text Report Generator)**
+* **Action:** Implemented the explicit text report generator within `IMEIService`.
+* **Result:** Formats a human-readable text document containing top-level stats, per-column statistics, missing details, and a full line-by-line mapping. This is appended to the `IMEIVerificationReport` as `text_report` in JSON for easy front-end rendering or direct download.
+* **Status:** Passed `go build ./...` compilation.
+* **Next Steps:** Final E2E testing of the application.
+
+**Session: 2026-02-21 (Phase 5 E2E Testing)**
+* **Action:** Wrote an end-to-end integration script (`test_e2e.sh`) to verify the full multi-role flow. Resolved missing `.env` ingestion bindings for the background Go daemon.
+* **Result:** 
+  - Verified role assignments: Admin `q.aldaniyazov` registered and immediately logged in. `test2@marketplace.com` correctly defaulted to `marketplace_staff` and was blocked until Admin approved.
+  - Verified Smart Ingestion: JSON array parsing intercepted malformed fields (skipped items) vs clean rows (upserted).
+  - Verified Ticket cross-layering: The `SupportTickets` fetch bypassed array-scanning pg-driver bugs and correctly aggregated JSON.
+* **Status:** Complete. The system's logical bounds are validated against all Executive Goals.
+* **Next Steps:** Proceed to front-end UI connections or deployment via Docker to verify SPA fallback behavior.
+
+### Phase 7: Full-Stack Integration Hotfix (Session Summary)
+- Repaired `ParcelsPage.tsx` "Use" logic (REST mapped and UI reacting optimistically).
+- Patched `App.tsx` Route Guard parameters yielding CSV ingestion capabilities to Admins.
+- Prevented Risk Error 400 Bad Requests by aligning the Typescript interface `comment` property with its Go implementation equivalent.
+- Initiated and attached a data-dense `AnalyticsPage.tsx` to visualize 4 raw Risk metrics for Admin overview.
+- TypeScript checked (`tsc -b`) - Passed!
+
+### Phase 8: Hotfix 2 (5 Critical Bugs)
+- **Bug 1 & 2:** Built a robust CSV engine `NewRobustCSVReader` to auto-detect BOM, delimiters (`;` vs `,`), and lazy quotes. Appended it to Risk and Parcel upload services fixing incomplete rows and Error 400s.
+- **Bug 3:** Added strict `RoleCustoms` constraints to the `ParcelsPage` UI and `/api/v1/parcels/mark-used` Go handler.
+- **Bug 4:** Connected the Backend explicitly to the `MarkUsed` DB execution layer (`UPDATE parcels SET is_used = true...`) resolving the UI state regression bug.
+- **Bug 5:** Added `ATS_Staff` and `Customs` to the `Analytics` RoleGards allowing cross-role functionality.

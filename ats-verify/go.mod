@@ -1,6 +1,6 @@
 module ats-verify
 
-go 1.25.0
+go 1.24.1
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
@@ -10,3 +10,5 @@ require (
 )
 
 require github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
+
+require github.com/joho/godotenv v1.5.1

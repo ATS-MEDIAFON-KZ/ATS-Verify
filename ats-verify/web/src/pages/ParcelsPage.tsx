@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Search, Download, Filter } from 'lucide-react';
 import api from '../lib/api';
+import { useAuth } from '../hooks/useAuth';
 import type { Parcel } from '../types';
 
 export default function ParcelsPage() {
@@ -10,6 +11,7 @@ export default function ParcelsPage() {
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
+    const { user } = useAuth();
     const limit = 20;
 
     const fetchParcels = useCallback(async () => {
@@ -38,6 +40,18 @@ export default function ParcelsPage() {
     }, [searchQuery, statusFilter]);
 
     const totalPages = Math.ceil(total / limit) || 1;
+
+    const handleMarkUsed = async (trackNumber: string) => {
+        try {
+            await api.post('/parcels/mark-used', { track_number: trackNumber });
+            // Optimistically update the local state to show 'IsUsed: true'
+            setParcels(prev => prev.map(p => p.track_number === trackNumber ? { ...p, is_used: true } : p));
+        } catch (err: any) {
+            console.error('Failed to mark parcel as used:', err);
+            const msg = err.response?.data?.error || 'Ошибка: Не удалось отметить посылку как использованную.';
+            alert(msg);
+        }
+    };
 
     const handleExportCSV = () => {
         if (parcels.length === 0) return;
@@ -130,8 +144,11 @@ export default function ParcelsPage() {
                                     </td>
                                     <td>{p.upload_date?.split('T')[0]}</td>
                                     <td>
-                                        {!p.is_used && (
-                                            <button className="text-xs text-primary font-medium hover:text-primary-dark cursor-pointer">
+                                        {!p.is_used && user?.role === 'customs_staff' && (
+                                            <button
+                                                onClick={() => handleMarkUsed(p.track_number)}
+                                                className="text-xs text-primary font-medium hover:text-primary-dark cursor-pointer"
+                                            >
                                                 Использовать
                                             </button>
                                         )}

@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/csv"
 	"fmt"
 	"io"
 	"strings"
@@ -51,12 +50,17 @@ type AnalyticsReports struct {
 // AnalyzeCSV processes the risk analysis CSV and detects anomalies.
 // CSV format: Date | AppId | IIN/BIN | doc | User | Org | Status | Reject | Reason
 func (s *RiskAnalysisService) AnalyzeCSV(ctx context.Context, reader io.Reader, flaggedBy uuid.UUID) (int, error) {
-	csvReader := csv.NewReader(reader)
-	csvReader.TrimLeadingSpace = true
+	csvReader, err := NewRobustCSVReader(reader)
+	if err != nil {
+		return 0, fmt.Errorf("initializing robust CSV reader: %w", err)
+	}
 
 	header, err := csvReader.Read()
 	if err != nil {
 		return 0, fmt.Errorf("reading CSV header: %w", err)
+	}
+	for i := range header {
+		header[i] = strings.TrimSpace(header[i])
 	}
 
 	colMap := make(map[string]int)
@@ -104,6 +108,9 @@ func (s *RiskAnalysisService) AnalyzeCSV(ctx context.Context, reader io.Reader, 
 		}
 		if err != nil {
 			continue
+		}
+		for i := range record {
+			record[i] = strings.TrimSpace(record[i])
 		}
 
 		row := RiskCSVRow{

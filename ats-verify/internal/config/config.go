@@ -2,9 +2,12 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 // Config holds all application configuration.
@@ -58,6 +61,11 @@ func (d DatabaseConfig) DSN() string {
 
 // Load reads configuration from environment variables.
 func Load() (*Config, error) {
+	// Attempt to load .env file; it's okay if it doesn't exist (e.g. in Docker)
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, relying on system environment variables")
+	}
+
 	dbPort, err := strconv.Atoi(getEnv("POSTGRES_PORT", "5432"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid POSTGRES_PORT: %w", err)

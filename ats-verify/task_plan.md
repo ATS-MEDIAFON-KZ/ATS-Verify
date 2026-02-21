@@ -39,12 +39,17 @@ description: Active Kanban board and phase checklist based on the BLAST framewor
 
 ## Phase 4: Style & Output
 
-- [ ] Implement the specific IMEI text report generator (Total stats, examples, line-by-line mapping).
+- [x] Implement the specific IMEI text report generator (Total stats, examples, line-by-line mapping).
+## Frontend Implementation
 - [x] Apply premium design tokens (Navy, Electric Blue) to React/Vite frontend. *(Inter font, design system in index.css)*
 - [x] Implement Dashboard UI (Statistics, Task Calendar) based on reference designs. *(Stat cards, ticket breakdown, activity feed)*
 - [x] Implement Kanban Board UI with draggable cards (ATS creates, Customs moves/edits). *(TicketsPage + @dnd-kit)*
+- [x] Connect `risk_level` and `risk_comment` to Kanban cards.
+- [x] Connect analytical risk counts to Dashboard widgets.
+- [x] Connect `text_report` to IMEI verification page.
 
 ## Phase 5: Trigger
 
 - [x] Write Dockerfile and docker-compose.yml. *(Multi-stage: Node→Go→Alpine, SPA serving, non-root)*
-- [ ] Final end-to-end testing.
+- [x] Conduct Local Stabilization Audit (HOTFIX) — fixed `.env` loading, verified CORS and routing.
+- [x] Final end-to-end testing. *(Completed: Bash test suite verified all core endpoints)*

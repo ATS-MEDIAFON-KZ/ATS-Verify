@@ -28,9 +28,9 @@ export interface Parcel {
 export interface RiskProfile {
     id: string;
     iin_bin: string;
-    risk_level: RiskLevel;
-    flagged_by: string;
-    reason: string;
+    risk_level: 'red' | 'yellow' | 'green';
+    comment: string;
+    created_by: string;
     created_at: string;
     updated_at: string;
 }
@@ -91,4 +91,6 @@ export interface SupportTicket {
     assigned_to?: string;
     created_at: string;
     updated_at: string;
+    risk_level?: RiskLevel;
+    risk_comment?: string;
 }

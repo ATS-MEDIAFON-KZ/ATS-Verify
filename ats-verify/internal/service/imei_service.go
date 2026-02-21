@@ -134,5 +134,46 @@ func (s *IMEIService) Analyze(csvReader io.Reader, pdfTextContent string) (*mode
 		report.ColumnStats = append(report.ColumnStats, *statsMap[colName])
 	}
 
+	report.TextReport = generateTextReport(report)
+
 	return report, nil
+}
+
+func generateTextReport(report *models.IMEIVerificationReport) string {
+	var sb strings.Builder
+
+	sb.WriteString("=========================================\n")
+	sb.WriteString("        IMEI VERIFICATION REPORT\n")
+	sb.WriteString("=========================================\n\n")
+
+	sb.WriteString(fmt.Sprintf("Total IMEIs processed: %d\n", report.TotalIMEIs))
+	sb.WriteString(fmt.Sprintf("Total Found in PDF: %d\n", report.TotalFound))
+	sb.WriteString(fmt.Sprintf("Total Missing: %d\n\n", report.TotalMissing))
+
+	sb.WriteString("--- STATISTICS BY COLUMN ---\n")
+	for _, stat := range report.ColumnStats {
+		sb.WriteString(fmt.Sprintf("%s: %d processed (%d found, %d missing)\n", stat.Column, stat.Total, stat.Found, stat.Missing))
+	}
+	sb.WriteString("\n")
+
+	if report.TotalMissing > 0 {
+		sb.WriteString("--- MISSING IMEI DETAILS ---\n")
+		for _, res := range report.Results {
+			if !res.Found {
+				sb.WriteString(fmt.Sprintf("Line %d [%s]: %s (Missing)\n", res.CSVLine, res.Column, res.IMEI14))
+			}
+		}
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("--- FULL MAPPING ---\n")
+	for _, res := range report.Results {
+		if res.Found {
+			sb.WriteString(fmt.Sprintf("Line %d [%s]: %s -> MATCHED: %s\n", res.CSVLine, res.Column, res.IMEI14, res.MatchedIMEI))
+		} else {
+			sb.WriteString(fmt.Sprintf("Line %d [%s]: %s -> MISSING\n", res.CSVLine, res.Column, res.IMEI14))
+		}
+	}
+
+	return sb.String()
 }

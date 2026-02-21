@@ -123,10 +123,8 @@ func (s *AuthService) Register(ctx context.Context, username, password string) (
 		role = models.RoleATSStaff
 	}
 
-	// Ideally we could let them choose a role but based on goals, admin assigns roles for non-ATS staff or we use a basic default.
-	// For now we assume they default to something like RolePaidUser if not ATS, and Admin changes it.
 	if !isApproved {
-		role = models.RolePaidUser
+		role = models.RoleMarketplace
 	}
 
 	user := &models.User{

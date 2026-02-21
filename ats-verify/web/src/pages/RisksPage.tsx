@@ -35,7 +35,11 @@ export default function RisksPage() {
         setSaving(true);
         setError('');
         try {
-            await api.post('/risks', { iin_bin: newIin, risk_level: newLevel, reason: newReason });
+            await api.post('/risks', {
+                iin_bin: newIin,
+                risk_level: newLevel,
+                comment: newReason, // API expects 'comment'
+            });
             setShowModal(false);
             setNewIin(''); setNewLevel('yellow'); setNewReason('');
             fetchRisks();
@@ -58,7 +62,8 @@ export default function RisksPage() {
     };
 
     const filtered = risks.filter((r) =>
-        r.iin_bin.includes(searchQuery) || r.reason?.toLowerCase().includes(searchQuery.toLowerCase())
+        r.iin_bin.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.comment?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     return (
@@ -105,18 +110,18 @@ export default function RisksPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {filtered.map((r) => (
-                                <tr key={r.id}>
-                                    <td className="font-mono font-medium text-text-primary">{r.iin_bin}</td>
+                            {filtered.map((profile) => (
+                                <tr key={profile.id}>
+                                    <td className="font-mono font-medium text-text-primary">{profile.iin_bin}</td>
                                     <td>
-                                        <span className={LEVEL_CONFIG[r.risk_level]?.badge || 'badge-info'}>
-                                            {LEVEL_CONFIG[r.risk_level]?.label || r.risk_level}
+                                        <span className={LEVEL_CONFIG[profile.risk_level]?.badge || 'badge-info'}>
+                                            {LEVEL_CONFIG[profile.risk_level]?.label || profile.risk_level}
                                         </span>
                                     </td>
-                                    <td>{r.reason}</td>
-                                    <td>{r.created_at?.split('T')[0]}</td>
+                                    <td>{profile.comment}</td>
+                                    <td>{new Date(profile.created_at).toLocaleDateString()}</td>
                                     <td>
-                                        <button onClick={() => handleDelete(r.id)} className="text-xs text-danger font-medium hover:text-red-700 cursor-pointer flex items-center gap-1">
+                                        <button onClick={() => handleDelete(profile.id)} className="text-xs text-danger font-medium hover:text-red-700 cursor-pointer flex items-center gap-1">
                                             <Trash2 size={12} />
                                             Удалить
                                         </button>

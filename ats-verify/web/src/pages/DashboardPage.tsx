@@ -164,6 +164,9 @@ export default function DashboardPage() {
         if (s.label === 'Активных тикетов') {
             return { ...s, value: String(tickets.filter((t) => t.status !== 'completed').length) };
         }
+        if (s.label === 'Красный риск') {
+            return { ...s, value: String(tickets.filter((t) => t.risk_level === 'red').length), change: undefined };
+        }
         return s;
     });
 

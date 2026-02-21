@@ -10,6 +10,7 @@ import TrackingPage from './pages/TrackingPage';
 import IMEIPage from './pages/IMEIPage';
 import RisksPage from './pages/RisksPage';
 import TicketsPage from './pages/TicketsPage';
+import AnalyticsPage from './pages/AnalyticsPage';
 import type { UserRole } from './types';
 import './index.css';
 
@@ -38,7 +39,7 @@ function App() {
             } />
 
             <Route path="upload" element={
-              <RoleGuard allowed={['marketplace_staff']}>
+              <RoleGuard allowed={['marketplace_staff', 'admin']}>
                 <UploadPage />
               </RoleGuard>
             } />
@@ -60,6 +61,12 @@ function App() {
             <Route path="risks" element={
               <RoleGuard allowed={['admin', 'customs_staff']}>
                 <RisksPage />
+              </RoleGuard>
+            } />
+
+            <Route path="analytics" element={
+              <RoleGuard allowed={['admin', 'ats_staff', 'customs_staff']}>
+                <AnalyticsPage />
               </RoleGuard>
             } />
 

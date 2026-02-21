@@ -77,7 +77,6 @@ func (s *TicketService) Create(ctx context.Context, input CreateTicketInput, cre
 		SupportComment:    input.SupportComment,
 		Status:            models.TicketStatusToDo,
 		Priority:          priority,
-		LinkedTicketID:    input.LinkedTicketID,
 		CreatedBy:         createdBy,
 	}
 

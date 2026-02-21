@@ -21,6 +21,7 @@ import {
     X,
     User,
     UploadCloud,
+    ShieldAlert,
 } from 'lucide-react';
 import api from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
@@ -63,7 +64,17 @@ function TicketCard({ ticket, onClick }: { ticket: SupportTicket; onClick: () =>
             className="kanban-card group"
         >
             <div className="flex items-center justify-between mb-2">
-                <span className={p.class}>{p.label}</span>
+                <div className="flex items-center gap-1.5">
+                    <span className={p.class}>{p.label}</span>
+                    {ticket.risk_level && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${ticket.risk_level === 'red' ? 'bg-red-100 text-red-700' :
+                            ticket.risk_level === 'yellow' ? 'bg-amber-100 text-amber-700' :
+                                'bg-green-100 text-green-700'
+                            }`}>
+                            Риск
+                        </span>
+                    )}
+                </div>
                 <span className="text-[11px] text-text-muted font-mono">#{ticket.support_ticket_id}</span>
             </div>
             <h4 className="text-sm font-semibold text-text-primary mb-1 line-clamp-2">{ticket.rejection_reason}</h4>
@@ -246,6 +257,14 @@ function TicketDetailPanel({ ticket, onClose, onUpdated }: { ticket: SupportTick
                     <div className="flex items-center gap-2">
                         <span className={p.class}>{p.label}</span>
                         {statusCol && <span className="badge-info">{statusCol.label}</span>}
+                        {ticket.risk_level && (
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ticket.risk_level === 'red' ? 'bg-red-100 text-red-700' :
+                                ticket.risk_level === 'yellow' ? 'bg-amber-100 text-amber-700' :
+                                    'bg-green-100 text-green-700'
+                                }`}>
+                                Уровень риска: {ticket.risk_level.toUpperCase()}
+                            </span>
+                        )}
                         <span className="text-xs text-text-muted font-mono">#{ticket.support_ticket_id}</span>
                     </div>
                     <button onClick={onClose} className="text-text-muted hover:text-text-primary cursor-pointer"><X size={18} /></button>
@@ -263,6 +282,23 @@ function TicketDetailPanel({ ticket, onClose, onUpdated }: { ticket: SupportTick
                         <p className="text-sm font-medium text-text-primary">{ticket.document_number}</p>
                     </div>
                 </div>
+
+                {ticket.risk_level && ticket.risk_comment && (
+                    <div className={`mb-5 p-3 rounded-lg border ${ticket.risk_level === 'red' ? 'bg-red-50/50 border-red-100' :
+                        ticket.risk_level === 'yellow' ? 'bg-amber-50/50 border-amber-100' :
+                            'bg-green-50/50 border-green-100'
+                        }`}>
+                        <div className="flex items-center gap-2 mb-1">
+                            <ShieldAlert size={14} className={
+                                ticket.risk_level === 'red' ? 'text-red-500' :
+                                    ticket.risk_level === 'yellow' ? 'text-amber-500' :
+                                        'text-green-500'
+                            } />
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-primary">Отчет Risk Engine</p>
+                        </div>
+                        <p className="text-sm text-text-secondary">{ticket.risk_comment}</p>
+                    </div>
+                )}
 
                 {ticket.linked_ticket_id && (
                     <div className="mb-5 p-3 bg-blue-50/50 border border-blue-100 rounded-lg">

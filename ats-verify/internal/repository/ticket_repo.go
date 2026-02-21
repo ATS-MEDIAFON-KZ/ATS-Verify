@@ -28,11 +28,11 @@ func (r *TicketRepository) Create(ctx context.Context, t *models.SupportTicket) 
 		`INSERT INTO support_tickets
 		 (id, iin, full_name, support_ticket_id, application_number, document_number,
 		  rejection_reason, attachments, support_comment, customs_comment,
-		  status, priority, linked_ticket_id, created_by, assigned_to, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, NOW(), NOW())`,
+		  status, priority, created_by, assigned_to, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, NOW(), NOW())`,
 		newID, t.IIN, t.FullName, t.SupportTicketID, t.ApplicationNumber,
-		t.DocumentNumber, t.RejectionReason, t.Attachments,
-		t.SupportComment, t.CustomsComment, t.Status, t.Priority, t.LinkedTicketID,
+		t.DocumentNumber, t.RejectionReason, pq.Array(t.Attachments),
+		t.SupportComment, t.CustomsComment, t.Status, t.Priority,
 		t.CreatedBy, t.AssignedTo,
 	)
 	if err != nil {
@@ -47,15 +47,15 @@ func (r *TicketRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.S
 	err := r.db.QueryRowContext(ctx,
 		`SELECT t.id, t.iin, t.full_name, t.support_ticket_id, t.application_number, t.document_number,
 		        t.rejection_reason, t.attachments, t.support_comment, t.customs_comment,
-		        t.status, t.priority, t.linked_ticket_id, t.created_by, t.assigned_to, t.created_at, t.updated_at,
+		        t.status, t.priority, t.created_by, t.assigned_to, t.created_at, t.updated_at,
                 r.risk_level, r.comment as risk_comment
 		 FROM support_tickets t 
          LEFT JOIN iin_bin_risks r ON t.iin = r.iin_bin 
          WHERE t.id = $1`, id,
 	).Scan(
 		&t.ID, &t.IIN, &t.FullName, &t.SupportTicketID, &t.ApplicationNumber,
-		&t.DocumentNumber, &t.RejectionReason, &t.Attachments,
-		&t.SupportComment, &t.CustomsComment, &t.Status, &t.Priority, &t.LinkedTicketID,
+		&t.DocumentNumber, &t.RejectionReason, pq.Array(&t.Attachments),
+		&t.SupportComment, &t.CustomsComment, &t.Status, &t.Priority,
 		&t.CreatedBy, &t.AssignedTo, &t.CreatedAt, &t.UpdatedAt,
 		&t.RiskLevel, &t.RiskComment,
 	)
@@ -72,7 +72,7 @@ func (r *TicketRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.S
 func (r *TicketRepository) ListByStatus(ctx context.Context, status string) ([]models.SupportTicket, error) {
 	query := `SELECT t.id, t.iin, t.full_name, t.support_ticket_id, t.application_number, t.document_number,
 	                  t.rejection_reason, t.attachments, t.support_comment, t.customs_comment,
-	                  t.status, t.priority, t.linked_ticket_id, t.created_by, t.assigned_to, t.created_at, t.updated_at,
+	                  t.status, t.priority, t.created_by, t.assigned_to, t.created_at, t.updated_at,
                       r.risk_level, r.comment as risk_comment
 	           FROM support_tickets t
                LEFT JOIN iin_bin_risks r ON t.iin = r.iin_bin`
@@ -95,8 +95,8 @@ func (r *TicketRepository) ListByStatus(ctx context.Context, status string) ([]m
 		var t models.SupportTicket
 		if err := rows.Scan(
 			&t.ID, &t.IIN, &t.FullName, &t.SupportTicketID, &t.ApplicationNumber,
-			&t.DocumentNumber, &t.RejectionReason, &t.Attachments,
-			&t.SupportComment, &t.CustomsComment, &t.Status, &t.Priority, &t.LinkedTicketID,
+			&t.DocumentNumber, &t.RejectionReason, pq.Array(&t.Attachments),
+			&t.SupportComment, &t.CustomsComment, &t.Status, &t.Priority,
 			&t.CreatedBy, &t.AssignedTo, &t.CreatedAt, &t.UpdatedAt,
 			&t.RiskLevel, &t.RiskComment,
 		); err != nil {

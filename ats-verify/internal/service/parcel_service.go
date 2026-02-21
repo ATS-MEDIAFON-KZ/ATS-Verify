@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/csv"
 	"fmt"
 	"io"
 	"strings"
@@ -36,13 +35,18 @@ type UploadResult struct {
 // ProcessCSVUpload parses a CSV file and upserts parcels.
 // Expected CSV format: marketplace, country, brand, product_name, track_number, snt, date
 func (s *ParcelService) ProcessCSVUpload(ctx context.Context, reader io.Reader, overrideMarketplace string, uploadedBy uuid.UUID) (*UploadResult, error) {
-	csvReader := csv.NewReader(reader)
-	csvReader.TrimLeadingSpace = true
+	csvReader, err := NewRobustCSVReader(reader)
+	if err != nil {
+		return nil, fmt.Errorf("initializing robust CSV reader: %w", err)
+	}
 
 	// Read header row
 	header, err := csvReader.Read()
 	if err != nil {
 		return nil, fmt.Errorf("reading CSV header: %w", err)
+	}
+	for i := range header {
+		header[i] = strings.TrimSpace(header[i])
 	}
 
 	// Build column index map
@@ -78,6 +82,9 @@ func (s *ParcelService) ProcessCSVUpload(ctx context.Context, reader io.Reader, 
 			result.Errors = append(result.Errors, fmt.Sprintf("row parse error: %v", err))
 			continue
 		}
+		for i := range record {
+			record[i] = strings.TrimSpace(record[i])
+		}
 
 		result.TotalProcessed++
 
@@ -98,19 +105,15 @@ func (s *ParcelService) ProcessCSVUpload(ctx context.Context, reader io.Reader, 
 
 		rowMarketplace := getCSVField(record, colMap, "marketplace")
 
-		// Validation of required fields per GOALS.md
-		if overrideMarketplace == "" && rowMarketplace == "" {
-			result.Errors = append(result.Errors, fmt.Sprintf("row %d: missing marketplace column for admin upload", result.TotalProcessed))
-			continue
-		}
-		if country == "" || brand == "" || productName == "" || snt == "" || dateStr == "" {
-			result.Errors = append(result.Errors, fmt.Sprintf("row %d: missing required fields (country, brand, name, snt, date)", result.TotalProcessed))
-			continue
-		}
-
 		finalMarketplace := overrideMarketplace
 		if finalMarketplace == "" {
 			finalMarketplace = rowMarketplace
+		}
+
+		// Strictly skip rows where ANY required value is missing
+		if finalMarketplace == "" || country == "" || brand == "" || productName == "" || snt == "" || dateStr == "" {
+			result.Errors = append(result.Errors, fmt.Sprintf("row %d: missing required fields", result.TotalProcessed))
+			continue
 		}
 
 		var uploadDate time.Time
@@ -144,6 +147,84 @@ func (s *ParcelService) ProcessCSVUpload(ctx context.Context, reader io.Reader, 
 		case "skipped_used":
 			result.Skipped++
 			result.Errors = append(result.Errors, fmt.Sprintf("%s: %s", trackNumber, upsertResult.Message))
+		}
+	}
+
+	return result, nil
+}
+
+// ProcessJSONUpload parses JSON payloads (array of parcels) and upserts.
+type JSONUploadRequest struct {
+	Marketplace string `json:"marketplace"`
+	Country     string `json:"country"`
+	Brand       string `json:"brand"`
+	ProductName string `json:"name"`
+	TrackNumber string `json:"track_number"`
+	SNT         string `json:"snt"`
+	Date        string `json:"date"`
+}
+
+func (s *ParcelService) ProcessJSONUpload(ctx context.Context, payloads []JSONUploadRequest, overrideMarketplace string, uploadedBy uuid.UUID) (*UploadResult, error) {
+	result := &UploadResult{}
+
+	for i, req := range payloads {
+		result.TotalProcessed++
+
+		trackNumber := strings.TrimSpace(req.TrackNumber)
+		if trackNumber == "" {
+			result.Errors = append(result.Errors, fmt.Sprintf("item %d: empty track_number", i))
+			continue
+		}
+
+		finalMarketplace := overrideMarketplace
+		if finalMarketplace == "" {
+			finalMarketplace = strings.TrimSpace(req.Marketplace)
+		}
+
+		country := strings.TrimSpace(req.Country)
+		brand := strings.TrimSpace(req.Brand)
+		productName := strings.TrimSpace(req.ProductName)
+		snt := strings.TrimSpace(req.SNT)
+		dateStr := strings.TrimSpace(req.Date)
+
+		// Strictly skip incomplete rows
+		if finalMarketplace == "" || country == "" || brand == "" || productName == "" || snt == "" || dateStr == "" {
+			result.Errors = append(result.Errors, fmt.Sprintf("item %d: missing required fields", i))
+			continue
+		}
+
+		var uploadDate time.Time
+		uploadDate, err := time.Parse("2006-01-02", dateStr)
+		if err != nil {
+			uploadDate = time.Now()
+		}
+
+		parcel := &models.Parcel{
+			TrackNumber: trackNumber,
+			Marketplace: finalMarketplace,
+			Country:     country,
+			Brand:       brand,
+			ProductName: productName,
+			SNT:         snt,
+			UploadDate:  uploadDate,
+			UploadedBy:  uploadedBy,
+		}
+
+		upsertResult, err := s.parcelRepo.UpsertParcel(ctx, parcel)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("item %d (%s): %v", i, trackNumber, err))
+			continue
+		}
+
+		switch upsertResult.Action {
+		case "inserted":
+			result.Inserted++
+		case "updated":
+			result.Updated++
+			result.Errors = append(result.Errors, fmt.Sprintf("Warning: %s %s", trackNumber, upsertResult.Message))
+		case "skipped_used":
+			result.Skipped++
+			result.Errors = append(result.Errors, fmt.Sprintf("Warning: %s: %s", trackNumber, upsertResult.Message))
 		}
 	}
 
@@ -186,6 +267,11 @@ func (s *ParcelService) ListParcels(ctx context.Context, f ListParcelsFilter) (*
 		Page:    f.Page,
 		Limit:   f.Limit,
 	}, nil
+}
+
+// MarkParcelUsed sets the is_used flag to true in the database.
+func (s *ParcelService) MarkParcelUsed(ctx context.Context, trackNumber string) error {
+	return s.parcelRepo.MarkUsed(ctx, trackNumber)
 }
 
 // BulkTrackResult is the result of looking up multiple track numbers.

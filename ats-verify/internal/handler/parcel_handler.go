@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -27,8 +28,11 @@ func (h *ParcelHandler) RegisterRoutes(mux *http.ServeMux, authMw func(http.Hand
 	mux.Handle("POST /api/v1/parcels/upload", authMw(
 		middleware.RequireRole(models.RoleMarketplace, models.RoleAdmin)(http.HandlerFunc(h.Upload)),
 	))
+	mux.Handle("POST /api/v1/parcels/upload-json", authMw(
+		middleware.RequireRole(models.RoleMarketplace, models.RoleAdmin)(http.HandlerFunc(h.UploadJSON)),
+	))
 	mux.Handle("POST /api/v1/parcels/mark-used", authMw(
-		middleware.RequireRole(models.RoleATSStaff, models.RoleCustoms, models.RoleAdmin)(http.HandlerFunc(h.MarkUsed)),
+		middleware.RequireRole(models.RoleCustoms)(http.HandlerFunc(h.MarkUsed)),
 	))
 }
 
@@ -140,5 +144,56 @@ func (h *ParcelHandler) MarkUsed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := h.parcelService.MarkParcelUsed(r.Context(), req.TrackNumber); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			Error(w, http.StatusBadRequest, "Трек-номер не найден в БД")
+			return
+		}
+		Error(w, http.StatusInternalServerError, "failed to update database")
+		return
+	}
+
 	JSON(w, http.StatusOK, map[string]string{"message": "parcel marked as used", "track_number": req.TrackNumber})
+}
+
+// UploadJSON handles POST /api/v1/parcels/upload-json (application/json)
+func (h *ParcelHandler) UploadJSON(w http.ResponseWriter, r *http.Request) {
+	claims := middleware.GetClaims(r)
+	if claims == nil {
+		Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var reqs []service.JSONUploadRequest
+	if err := Decode(r, &reqs); err != nil {
+		Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	overrideMarketplace := ""
+	if claims.Role == models.RoleMarketplace {
+		if claims.MarketplacePrefix != "" {
+			if name, ok := models.MarketplacePrefixMap[claims.MarketplacePrefix]; ok {
+				overrideMarketplace = name
+			} else {
+				overrideMarketplace = claims.MarketplacePrefix
+			}
+		} else {
+			overrideMarketplace = "Unknown Marketplace"
+		}
+	}
+
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, "invalid user ID in token")
+		return
+	}
+
+	result, err := h.parcelService.ProcessJSONUpload(r.Context(), reqs, overrideMarketplace, userID)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	JSON(w, http.StatusOK, result)
 }
