@@ -75,7 +75,7 @@ type DocumentReuseFlag struct {
 // GetDocumentReuseReport Returns documents used more than once.
 func (r *RiskRawDataRepository) GetDocumentReuseReport(ctx context.Context) ([]DocumentReuseFlag, error) {
 	query := `
-		SELECT document, COUNT(*) as usage_count, COALESCE(MAX(report_date), MAX(created_at::text)) as last_used
+		SELECT document, COUNT(*) as usage_count, COALESCE(MAX(report_date::text), MAX(created_at::text)) as last_used
 		FROM risk_raw_data 
 		WHERE document IS NOT NULL AND document != ''
 		GROUP BY document 
@@ -144,7 +144,7 @@ type FrequencyFlag struct {
 // GetIINFrequencyReport Returns IINs grouped by frequency, sorted desc.
 func (r *RiskRawDataRepository) GetIINFrequencyReport(ctx context.Context) ([]FrequencyFlag, error) {
 	query := `
-		SELECT iin_bin, COUNT(*) as usage_count, COALESCE(MAX(report_date), MAX(created_at::text)) as last_used
+		SELECT iin_bin, COUNT(*) as usage_count, COALESCE(MAX(report_date::text), MAX(created_at::text)) as last_used
 		FROM risk_raw_data 
 		WHERE iin_bin IS NOT NULL AND iin_bin != '' AND iin_bin != '0'
 		GROUP BY iin_bin 
@@ -187,7 +187,9 @@ func (r *RiskRawDataRepository) GetFlipFlopStatusReport(ctx context.Context) ([]
 		GROUP BY document
 		HAVING SUM(CASE WHEN status ILIKE '%одобрен%' OR status ILIKE '%принят%' OR status ILIKE '%выдан%' OR status ILIKE '%утвержден%' THEN 1 ELSE 0 END) > 0 
            AND SUM(CASE WHEN status ILIKE '%отказ%' OR status ILIKE '%отклонен%' THEN 1 ELSE 0 END) > 0
-        ORDER BY approved_count + rejected_count DESC
+        ORDER BY 
+            (SUM(CASE WHEN status ILIKE '%одобрен%' OR status ILIKE '%принят%' OR status ILIKE '%выдан%' OR status ILIKE '%утвержден%' THEN 1 ELSE 0 END) + 
+             SUM(CASE WHEN status ILIKE '%отказ%' OR status ILIKE '%отклонен%' THEN 1 ELSE 0 END)) DESC
 		LIMIT 100
 	`
 	rows, err := r.db.QueryContext(ctx, query)

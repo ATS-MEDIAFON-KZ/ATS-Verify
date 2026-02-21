@@ -143,10 +143,25 @@ func (s *RiskAnalysisService) AnalyzeCSV(ctx context.Context, reader io.Reader, 
 
 // GetAnalyticsReports fetches all 4 risk analytics combinations.
 func (s *RiskAnalysisService) GetAnalyticsReports(ctx context.Context) (*AnalyticsReports, error) {
-	docReuse, _ := s.riskRawRepo.GetDocumentReuseReport(ctx)
-	docIinReuse, _ := s.riskRawRepo.GetDocumentIINReuseReport(ctx)
-	iinFreq, _ := s.riskRawRepo.GetIINFrequencyReport(ctx)
-	flipFlop, _ := s.riskRawRepo.GetFlipFlopStatusReport(ctx)
+	docReuse, err := s.riskRawRepo.GetDocumentReuseReport(ctx)
+	if err != nil {
+		log.Printf("Error fetching GetDocumentReuseReport: %v", err)
+	}
+
+	docIinReuse, err := s.riskRawRepo.GetDocumentIINReuseReport(ctx)
+	if err != nil {
+		log.Printf("Error fetching GetDocumentIINReuseReport: %v", err)
+	}
+
+	iinFreq, err := s.riskRawRepo.GetIINFrequencyReport(ctx)
+	if err != nil {
+		log.Printf("Error fetching GetIINFrequencyReport: %v", err)
+	}
+
+	flipFlop, err := s.riskRawRepo.GetFlipFlopStatusReport(ctx)
+	if err != nil {
+		log.Printf("Error fetching GetFlipFlopStatusReport: %v", err)
+	}
 
 	return &AnalyticsReports{
 		DocumentReuse:    docReuse,
