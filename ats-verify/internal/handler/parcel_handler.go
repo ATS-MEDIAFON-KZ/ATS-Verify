@@ -115,45 +115,34 @@ type markUsedRequest struct {
 
 // MarkUsed handles POST /api/v1/parcels/mark-used
 func (h *ParcelHandler) MarkUsed(w http.ResponseWriter, r *http.Request) {
-	var req markUsedRequest
+	var req struct {
+		TrackNumber string `json:"track_number"`
+	}
 	if err := Decode(r, &req); err != nil {
 		Error(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	if req.TrackNumber == "" {
+	track := strings.TrimSpace(req.TrackNumber)
+	if track == "" {
 		Error(w, http.StatusBadRequest, "track_number is required")
 		return
 	}
 
-	// MarkUsed is on the parcel repo, accessed through service
-	// For simplicity, we use the service's bulk lookup to verify existence
-	results, err := h.parcelService.BulkTrackLookup(r.Context(), []string{req.TrackNumber})
-	if err != nil {
-		Error(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	if len(results) == 0 || !results[0].Found {
-		Error(w, http.StatusNotFound, "parcel not found")
-		return
-	}
-
-	if results[0].Parcel.IsUsed {
-		Error(w, http.StatusConflict, "parcel already marked as used")
-		return
-	}
-
-	if err := h.parcelService.MarkParcelUsed(r.Context(), req.TrackNumber); err != nil {
+	// Обновляем статус посылки. Ошибка "not found" пробрасывается из repo
+	if err := h.parcelService.MarkParcelUsed(r.Context(), track); err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			Error(w, http.StatusBadRequest, "Трек-номер не найден в БД")
+			Error(w, http.StatusNotFound, "Трек-номер не найден в базе данных")
 			return
 		}
 		Error(w, http.StatusInternalServerError, "failed to update database")
 		return
 	}
 
-	JSON(w, http.StatusOK, map[string]string{"message": "parcel marked as used", "track_number": req.TrackNumber})
+	JSON(w, http.StatusOK, map[string]string{
+		"message":      "parcel marked as used",
+		"track_number": track,
+	})
 }
 
 // UploadJSON handles POST /api/v1/parcels/upload-json (application/json)
