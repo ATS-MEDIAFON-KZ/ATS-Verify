@@ -114,6 +114,9 @@ server {
     listen 80;
     server_name verify.yourdomain.kz;
 
+    # Увеличиваем лимит размера загружаемого файла (для CSV отчетов)
+    client_max_body_size 50M;
+
     location / {
         proxy_pass http://localhost:8080;
         proxy_set_header Host $host;
