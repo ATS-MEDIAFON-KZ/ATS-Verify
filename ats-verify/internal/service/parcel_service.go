@@ -47,10 +47,18 @@ func (s *ParcelService) ProcessCSVUpload(ctx context.Context, reader io.Reader, 
 		return nil, fmt.Errorf("initializing robust CSV reader: %w", err)
 	}
 
-	// Read and IGNORE header row
-	_, err = csvReader.Read()
+	// Read header row to map columns dynamically
+	headerRow, err := csvReader.Read()
 	if err != nil {
 		return nil, fmt.Errorf("reading CSV header: %w", err)
+	}
+
+	colMap := make(map[string]int)
+	for i, colName := range headerRow {
+		cleaned := strings.ToLower(strings.TrimSpace(colName))
+		// Remove BOM or surrounding quotes just in case
+		cleaned = strings.Trim(cleaned, "\xef\xbb\xbf\"'")
+		colMap[cleaned] = i
 	}
 
 	result := &UploadResult{}
@@ -75,18 +83,58 @@ func (s *ParcelService) ProcessCSVUpload(ctx context.Context, reader io.Reader, 
 
 		result.TotalProcessed++
 
-		if len(record) < 7 {
-			result.Errors = append(result.Errors, fmt.Sprintf("row %d: missing required fields (expected at least 7 columns)", result.TotalProcessed))
-			continue
+		rowMarketplace := getCSVField(record, colMap, "marketplace")
+		country := getCSVField(record, colMap, "country")
+		if country == "" {
+			country = getCSVField(record, colMap, "страна")
 		}
 
-		rowMarketplace := record[0]
-		country := record[1]
-		brand := record[2]
-		productName := record[3]
-		trackNumber := record[4]
-		snt := record[5]
-		dateStr := record[6]
+		brand := getCSVField(record, colMap, "brand")
+		if brand == "" {
+			brand = getCSVField(record, colMap, "бренд")
+		}
+
+		productName := getCSVField(record, colMap, "name")
+		if productName == "" {
+			productName = getCSVField(record, colMap, "product_name")
+		}
+		if productName == "" {
+			productName = getCSVField(record, colMap, "товар")
+		}
+		if productName == "" {
+			productName = getCSVField(record, colMap, "название")
+		}
+
+		trackNumber := getCSVField(record, colMap, "track_number")
+		if trackNumber == "" {
+			trackNumber = getCSVField(record, colMap, "трек-номер")
+		}
+		if trackNumber == "" {
+			trackNumber = getCSVField(record, colMap, "track")
+		}
+
+		snt := getCSVField(record, colMap, "snt")
+		if snt == "" {
+			snt = getCSVField(record, colMap, "снт")
+		}
+
+		dateStr := getCSVField(record, colMap, "date")
+		if dateStr == "" {
+			dateStr = getCSVField(record, colMap, "дата")
+		}
+
+		isUsed := false
+		usedStr := strings.ToUpper(getCSVField(record, colMap, "used"))
+		if usedStr == "" {
+			usedStr = strings.ToUpper(getCSVField(record, colMap, "is_used"))
+		}
+		if usedStr == "" {
+			usedStr = strings.ToUpper(getCSVField(record, colMap, "использован"))
+		}
+
+		if usedStr == "TRUE" || usedStr == "1" || usedStr == "YES" || usedStr == "ДА" {
+			isUsed = true
+		}
 
 		if trackNumber == "" {
 			result.Errors = append(result.Errors, fmt.Sprintf("row %d: empty track_number", result.TotalProcessed))
@@ -99,8 +147,22 @@ func (s *ParcelService) ProcessCSVUpload(ctx context.Context, reader io.Reader, 
 		}
 
 		// Strictly skip rows where ANY critical value is missing
-		if finalMarketplace == "" || country == "" || brand == "" || productName == "" {
-			result.Errors = append(result.Errors, fmt.Sprintf("row %d: missing required fields", result.TotalProcessed))
+		var missing []string
+		if finalMarketplace == "" {
+			missing = append(missing, "marketplace")
+		}
+		if country == "" {
+			missing = append(missing, "country")
+		}
+		if brand == "" {
+			missing = append(missing, "brand")
+		}
+		if productName == "" {
+			missing = append(missing, "name")
+		}
+
+		if len(missing) > 0 {
+			result.Errors = append(result.Errors, fmt.Sprintf("row %d: missing required fields: %s", result.TotalProcessed, strings.Join(missing, ", ")))
 			continue
 		}
 
@@ -126,6 +188,7 @@ func (s *ParcelService) ProcessCSVUpload(ctx context.Context, reader io.Reader, 
 			Brand:       brand,
 			ProductName: productName,
 			SNT:         snt,
+			IsUsed:      isUsed,
 			UploadDate:  uploadDate,
 			UploadedBy:  uploadedBy,
 		}
@@ -159,6 +222,7 @@ type JSONUploadRequest struct {
 	TrackNumber string `json:"track_number"`
 	SNT         string `json:"snt"`
 	Date        string `json:"date"`
+	Used        bool   `json:"used,omitempty"`
 }
 
 func (s *ParcelService) ProcessJSONUpload(ctx context.Context, payloads []JSONUploadRequest, overrideMarketplace string, uploadedBy uuid.UUID) (*UploadResult, error) {
@@ -185,8 +249,28 @@ func (s *ParcelService) ProcessJSONUpload(ctx context.Context, payloads []JSONUp
 		dateStr := strings.TrimSpace(req.Date)
 
 		// Strictly skip incomplete rows
-		if finalMarketplace == "" || country == "" || brand == "" || productName == "" || snt == "" || dateStr == "" {
-			result.Errors = append(result.Errors, fmt.Sprintf("item %d: missing required fields", i))
+		var missing []string
+		if finalMarketplace == "" {
+			missing = append(missing, "marketplace")
+		}
+		if country == "" {
+			missing = append(missing, "country")
+		}
+		if brand == "" {
+			missing = append(missing, "brand")
+		}
+		if productName == "" {
+			missing = append(missing, "name")
+		}
+		if snt == "" {
+			missing = append(missing, "snt")
+		}
+		if dateStr == "" {
+			missing = append(missing, "date")
+		}
+
+		if len(missing) > 0 {
+			result.Errors = append(result.Errors, fmt.Sprintf("item %d: missing required fields: %s", i, strings.Join(missing, ", ")))
 			continue
 		}
 
@@ -203,6 +287,7 @@ func (s *ParcelService) ProcessJSONUpload(ctx context.Context, payloads []JSONUp
 			Brand:       brand,
 			ProductName: productName,
 			SNT:         snt,
+			IsUsed:      req.Used,
 			UploadDate:  uploadDate,
 			UploadedBy:  uploadedBy,
 		}
