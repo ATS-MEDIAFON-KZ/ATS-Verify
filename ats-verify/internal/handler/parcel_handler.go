@@ -79,8 +79,9 @@ func (h *ParcelHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Determine marketplace from user prefix or role
-	overrideMarketplace := ""
+	// Determine marketplace from form value or user role
+	overrideMarketplace := strings.TrimSpace(r.FormValue("marketplace"))
+
 	if claims.Role == models.RoleMarketplace {
 		if claims.MarketplacePrefix != "" {
 			if name, ok := models.MarketplacePrefixMap[claims.MarketplacePrefix]; ok {
@@ -88,7 +89,7 @@ func (h *ParcelHandler) Upload(w http.ResponseWriter, r *http.Request) {
 			} else {
 				overrideMarketplace = claims.MarketplacePrefix
 			}
-		} else {
+		} else if overrideMarketplace == "" {
 			overrideMarketplace = "Unknown Marketplace"
 		}
 	}

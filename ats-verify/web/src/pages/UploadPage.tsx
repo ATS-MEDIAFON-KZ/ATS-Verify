@@ -1,6 +1,7 @@
 import { useState, useRef, type DragEvent } from 'react';
 import { Upload, FileText, CheckCircle, X } from 'lucide-react';
 import api from '../lib/api';
+import { useAuth } from '../hooks/useAuth';
 
 interface UploadResult {
     inserted: number;
@@ -10,7 +11,9 @@ interface UploadResult {
 }
 
 export default function UploadPage() {
+    const { user } = useAuth();
     const [file, setFile] = useState<File | null>(null);
+    const [marketplace, setMarketplace] = useState('');
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState(0);
     const [result, setResult] = useState<UploadResult | null>(null);
@@ -35,6 +38,9 @@ export default function UploadPage() {
         try {
             const formData = new FormData();
             formData.append('file', file);
+            if (marketplace) {
+                formData.append('marketplace', marketplace);
+            }
             const { data } = await api.post('/parcels/upload', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
                 onUploadProgress: (progressEvent) => {
@@ -65,6 +71,22 @@ export default function UploadPage() {
                     <Upload size={16} className="text-primary" />
                     Файл данных
                 </h3>
+
+                {user?.role === 'admin' && (
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium text-text-secondary mb-1">Маркетплейс (если отсутствует в файле)</label>
+                        <select
+                            value={marketplace}
+                            onChange={(e) => setMarketplace(e.target.value)}
+                            className="input w-full md:w-1/2"
+                        >
+                            <option value="">Выберите маркетплейс...</option>
+                            <option value="kaspi">Kaspi</option>
+                            <option value="ozon">Ozon</option>
+                            <option value="wildberries">Wildberries</option>
+                        </select>
+                    </div>
+                )}
 
                 {/* Drop zone */}
                 <div
